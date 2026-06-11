@@ -55,7 +55,7 @@ function handleCheckIn(data) {
     const todayStr = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy');
 
     // ตรวจ duplicate — lineUserId + jobId + วันเดียวกัน
-    const existing = sheet.getDataRange().getValues();
+    var existing = sheet.getDataRange().getValues();
     for (let i = 1; i < existing.length; i++) {
       const row = existing[i];
       if (!row[0]) continue;
