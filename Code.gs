@@ -105,8 +105,10 @@ function handleCheckIn(data) {
 }
 
 function getAdminIds(config) {
-  const ids = config.admin_line_ids || config.admin_line_id || '';
-  return ids.split(',').map(s => s.trim()).filter(s => s && s !== 'Uxxxxxxxxxxxxxxxxx');
+  const ids = (config.admin_line_ids || config.admin_line_id || '').toString();
+  return ids.split(',')
+    .map(s => s.trim())
+    .filter(s => /^U[0-9a-f]{32}$/i.test(s)); // ต้องเป็น LINE user ID format เท่านั้น
 }
 
 // =============================================
