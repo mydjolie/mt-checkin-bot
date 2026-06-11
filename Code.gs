@@ -115,7 +115,11 @@ function toDate(val) {
   if (!val) return null;
   if (val instanceof Date) return new Date(val);
   var m = val.toString().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return new Date(parseInt(m[3]), parseInt(m[2])-1, parseInt(m[1]));
+  if (m) {
+    var y = parseInt(m[3]);
+    if (y > 2400) y -= 543; // แปลง พ.ศ. → ค.ศ.
+    return new Date(y, parseInt(m[2]) - 1, parseInt(m[1]));
+  }
   return null;
 }
 
