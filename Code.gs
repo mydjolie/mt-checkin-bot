@@ -41,8 +41,7 @@ function doPost(e) {
 // LIFF Check-in
 // =============================================
 function handleCheckIn(data) {
-  // บังคับ team
-  if (!data.team || data.team.trim() === '') {
+  if (!String(data.team || '').trim()) {
     return jsonResponse({ status: 'error', message: 'กรุณาระบุทีม/ฝ่ายค่ะ' });
   }
 
@@ -52,23 +51,25 @@ function handleCheckIn(data) {
     const ss = SpreadsheetApp.openById(SHEET_ID);
     const sheet = ss.getSheetByName('CheckIn');
     const now = new Date();
-    const todayStr = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy');
+    const todayISO = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd');
 
-    // ตรวจ duplicate — อ่านจาก sheet โดยตรง (row[0] เป็น Date object เสมอ)
-    var todayISO = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd');
-    var allRows = sheet.getDataRange().getValues();
-    for (var i = 1; i < allRows.length; i++) {
-      var r = allRows[i];
-      if (!r[0]) continue;
-      var rDate = Utilities.formatDate(r[0], 'Asia/Bangkok', 'yyyy-MM-dd');
-      if (r[3] === data.lineUserId && r[1] === data.jobId && rDate === todayISO) {
-        return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
+    // ตรวจ duplicate — อ่านเฉพาะ 4 คอลัมน์แรก (Timestamp, JobID, ชื่องาน, LineUserID)
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      const rows = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        if (!r[0]) continue;
+        var rDate = Utilities.formatDate(r[0] instanceof Date ? r[0] : new Date(r[0]), 'Asia/Bangkok', 'yyyy-MM-dd');
+        if (r[3] === data.lineUserId && String(r[1]) === String(data.jobId) && rDate === todayISO) {
+          return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
+        }
       }
     }
 
-    const timestamp = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
+    // บันทึก now เป็น Date object — Google Sheets จัดการ format เอง
     sheet.appendRow([
-      timestamp,
+      now,
       data.jobId,
       data.jobName,
       data.lineUserId,
@@ -101,7 +102,7 @@ function handleCheckIn(data) {
   } catch(err) {
     return jsonResponse({ status: 'error', message: err.toString() });
   } finally {
-    lock.releaseLock();
+    if (lock.hasLock()) lock.releaseLock();
   }
 }
 
