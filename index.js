@@ -1,9 +1,21 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
 const { google } = require('googleapis');
+const { cellToDateStr, serialToDate, serialToDisplayDate, toBangkokDateStr, formatBangkok, parseDate } = require('./lib/utils');
+const { checkDuplicate } = require('./lib/checkin');
+const { filterActiveJobs } = require('./lib/jobs');
 
 const app = express();
 app.use(express.json());
+
+// CORS — allow GitHub Pages to call Render API
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 
 const lineConfig = {
   channelAccessToken: process.env.LINE_TOKEN,
@@ -31,9 +43,11 @@ const userState = new Map();
 // GET /jobs — ส่งรายการงาน Active ให้ LIFF
 app.get('/jobs', async (req, res) => {
   try {
-    const jobs = await getActiveJobs();
+    const sheets = await getSheets();
+    const jobs = await getActiveJobs(sheets);
     res.json({ status: 'success', jobs });
   } catch (err) {
+    console.error('/jobs error', err);
     res.json({ status: 'error', message: err.message });
   }
 });
@@ -75,7 +89,7 @@ async function handleCheckIn(data) {
   const now = new Date();
   const todayISO = toBangkokDateStr(now);
 
-  // Duplicate check — read only 4 cols
+  // Duplicate check — read only 4 cols, use pure checkDuplicate()
   const lastRow = await getLastRow(sheets, 'CheckIn');
   if (lastRow > 1) {
     const res = await sheets.spreadsheets.values.get({
@@ -84,13 +98,8 @@ async function handleCheckIn(data) {
       valueRenderOption: 'UNFORMATTED_VALUE',
       dateTimeRenderOption: 'SERIAL_NUMBER',
     });
-    for (const r of (res.data.values || [])) {
-      if (!r[0]) continue;
-      if (cellToDateStr(r[0]) === todayISO &&
-          String(r[1]) === String(data.jobId) &&
-          r[3] === data.lineUserId) {
-        return { status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' };
-      }
+    if (checkDuplicate(res.data.values || [], data.lineUserId, data.jobId, todayISO)) {
+      return { status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' };
     }
   }
 
@@ -247,25 +256,8 @@ async function getActiveJobs(sheets) {
     valueRenderOption: 'UNFORMATTED_VALUE',
     dateTimeRenderOption: 'SERIAL_NUMBER',
   });
-  const today = new Date(Date.now() + 7 * 3600000);
-  today.setHours(0, 0, 0, 0);
-  const jobs = [];
-  for (const r of (res.data.values || [])) {
-    if (r[8] !== 'Active') continue;
-    const start = r[5] ? serialToDate(r[5]) : null;
-    const end = r[6] ? serialToDate(r[6]) : null;
-    if (start && today < new Date(start.setHours(0,0,0,0))) continue;
-    if (end && today > new Date(end.setHours(23,59,59,999))) continue;
-    jobs.push({
-      jobId: String(r[0]), name: r[1],
-      lat: parseFloat(r[2]), lng: parseFloat(r[3]),
-      radius: parseFloat(r[4]),
-      startDate: r[5] ? serialToDisplayDate(r[5]) : '',
-      endDate: r[6] ? serialToDisplayDate(r[6]) : '',
-      location: r[7] || ''
-    });
-  }
-  return jobs;
+  const todayISO = toBangkokDateStr(new Date());
+  return filterActiveJobs(res.data.values || [], todayISO);
 }
 
 async function getCheckInRows(sheets) {
@@ -376,60 +368,7 @@ async function exportJobSummary(sheets, jobId) {
   return msg.trim();
 }
 
-// =============================================
-// Date Utilities
-// =============================================
-function serialToDate(serial) {
-  // Google Sheets serial → JS Date (Bangkok UTC+7)
-  const ms = (serial - 25569) * 86400000 + 7 * 3600000;
-  return new Date(ms);
-}
-
-function serialToDisplayDate(serial) {
-  const d = serialToDate(serial);
-  return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
-}
-
-function cellToDateStr(val) {
-  // Returns yyyy-MM-dd in Bangkok time
-  if (val === null || val === undefined || val === '') return null;
-  if (typeof val === 'number') {
-    const d = serialToDate(val);
-    return d.toISOString().slice(0, 10); // UTC+7 already applied
-  }
-  // String "dd/MM/yyyy ..."
-  const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) {
-    let y = parseInt(m[3]);
-    if (y > 2400) y -= 543;
-    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  }
-  return null;
-}
-
-function toBangkokDateStr(date) {
-  return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
-}
-
-function formatBangkok(date, fmt) {
-  const d = new Date(date.getTime() + 7 * 3600000);
-  const pad = n => String(n).padStart(2, '0');
-  return fmt
-    .replace('dd', pad(d.getUTCDate()))
-    .replace('MM', pad(d.getUTCMonth() + 1))
-    .replace('yyyy', d.getUTCFullYear())
-    .replace('HH', pad(d.getUTCHours()))
-    .replace('mm', pad(d.getUTCMinutes()))
-    .replace('ss', pad(d.getUTCSeconds()));
-}
-
-function parseDate(str) {
-  const m = str.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, d, mo, y] = m;
-  if (parseInt(mo) < 1 || parseInt(mo) > 12 || parseInt(d) < 1) return null;
-  return true;
-}
+// Date utilities are in lib/utils.js
 
 function reply(replyToken, text) {
   return client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
