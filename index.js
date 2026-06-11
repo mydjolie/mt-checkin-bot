@@ -23,6 +23,8 @@ const SHEET_ID = process.env.SHEET_ID;
 // =============================================
 // Webhook Endpoint
 // =============================================
+app.use(express.static(__dirname));
+
 app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
   res.status(200).send('OK');
   try {
@@ -33,6 +35,10 @@ app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
 });
 
 app.get('/', (req, res) => res.send('MT Check-in Bot is running!'));
+
+app.get('/config', (req, res) => {
+  res.json({ webAppUrl: process.env.WEB_APP_URL });
+});
 
 // =============================================
 // Handle Event
