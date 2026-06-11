@@ -56,14 +56,22 @@ function handleCheckIn(data) {
 
     // ตรวจ duplicate — lineUserId + jobId + วันเดียวกัน
     var existing = sheet.getDataRange().getValues();
+    Logger.log('=== DUPLICATE CHECK ===');
+    Logger.log('todayStr: ' + todayStr);
+    Logger.log('data.lineUserId: ' + data.lineUserId);
+    Logger.log('data.jobId: ' + data.jobId);
+    Logger.log('total rows: ' + (existing.length - 1));
     for (let i = 1; i < existing.length; i++) {
       const row = existing[i];
       if (!row[0]) continue;
       const rowDate = normalizeTimestamp(row[0]).slice(0, 10); // dd/MM/yyyy
+      Logger.log('row['+i+']: userId=' + row[3] + ' jobId=' + row[1] + ' date=' + rowDate);
       if (row[3] === data.lineUserId && row[1] === data.jobId && rowDate === todayStr) {
+        Logger.log('DUPLICATE FOUND → block');
         return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
       }
     }
+    Logger.log('No duplicate → proceed');
 
     const timestamp = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
     sheet.appendRow([
