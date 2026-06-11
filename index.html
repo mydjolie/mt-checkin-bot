@@ -204,7 +204,7 @@
 
 <script>
   const LIFF_ID = "2010366667-MfXxtvVD";
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQJJhwM5YJEINrA8Gzk3aIX7wuxKhoXXHRRCScfTiP6G-GfkPTH0CVAxU9NPrbKm5G/exec";
+  const WEB_APP_URL = "https://mt-checkin-bot.onrender.com";
 
   let userProfile = {};
   let selectedJob = null;
@@ -230,7 +230,7 @@
       // โหลด LIFF และ Jobs พร้อมกัน
       const [_, jobData] = await Promise.all([
         liff.init({ liffId: LIFF_ID }),
-        fetch(WEB_APP_URL).then(r => r.json())
+        fetch(WEB_APP_URL + '/jobs').then(r => r.json())
       ]);
 
       // Profile
@@ -306,10 +306,10 @@
         document.getElementById('stampStatus').innerText = '📤 กำลังบันทึกข้อมูล...';
 
         try {
-          const res = await fetch(WEB_APP_URL, {
+          const res = await fetch(WEB_APP_URL + '/checkin', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              type: 'checkin',
               jobId: selectedJob.jobId,
               jobName: selectedJob.name,
               lineUserId: userProfile.userId,
