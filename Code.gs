@@ -54,12 +54,16 @@ function handleCheckIn(data) {
     const now = new Date();
     const todayStr = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy');
 
-    // ตรวจ duplicate ด้วย PropertiesService — ไม่ต้องอ่าน sheet เลย
+    // ตรวจ duplicate — อ่านจาก sheet โดยตรง (row[0] เป็น Date object เสมอ)
     var todayISO = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd');
-    var dupKey = 'dup_' + data.lineUserId + '_' + data.jobId + '_' + todayISO;
-    var props = PropertiesService.getScriptProperties();
-    if (props.getProperty(dupKey)) {
-      return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
+    var allRows = sheet.getDataRange().getValues();
+    for (var i = 1; i < allRows.length; i++) {
+      var r = allRows[i];
+      if (!r[0]) continue;
+      var rDate = Utilities.formatDate(r[0], 'Asia/Bangkok', 'yyyy-MM-dd');
+      if (r[3] === data.lineUserId && r[1] === data.jobId && rDate === todayISO) {
+        return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
+      }
     }
 
     const timestamp = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
@@ -75,9 +79,6 @@ function handleCheckIn(data) {
       data.longitude,
       data.distance
     ]);
-
-    // บันทึก key ป้องกัน duplicate สำหรับวันนี้
-    props.setProperty(dupKey, '1');
 
     // แจ้ง Admin ทุกคน (ถ้า push fail ไม่กระทบการบันทึก)
     try {
