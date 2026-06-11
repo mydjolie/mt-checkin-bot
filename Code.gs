@@ -113,10 +113,32 @@ function handleBotEvent(event) {
     return;
   }
 
-  if (event.type !== 'message' || event.message.type !== 'text') return;
+  if (event.type !== 'message') return;
+
+  const msgType = event.message.type;
+
+  // รับ location message สำหรับ Admin กำลังสร้างงาน
+  if (msgType === 'location' && isAdmin) {
+    const state = getUserState(userId);
+    if (state === 'CREATE_JOB_PIN') {
+      const lat = event.message.latitude;
+      const lng = event.message.longitude;
+      const temp = getTempData(userId);
+      setTempData(userId, { ...temp, lat: lat.toString(), lng: lng.toString() });
+      setUserState(userId, 'CREATE_JOB_RADIUS');
+      replyMessage(replyToken,
+        `✅ พิกัด: ${lat.toFixed(6)}, ${lng.toFixed(6)}\n\n` +
+        `กรุณาพิมพ์ รัศมีที่อนุญาต (เมตร)\nเช่น 200, 500, 1000 ค่ะ`
+      );
+    }
+    return;
+  }
+
+  if (msgType !== 'text') return;
 
   const text = event.message.text.trim();
 
+  // Admin commands
   if (isAdmin) {
     if (text === 'สร้างงาน') {
       setUserState(userId, 'CREATE_JOB_NAME');
@@ -177,30 +199,18 @@ function handleCreateJobFlow(userId, replyToken, text, state) {
 
   if (state === 'CREATE_JOB_LOCATION') {
     setTempData(userId, { ...temp, location: text });
-    setUserState(userId, 'CREATE_JOB_LAT');
-    replyMessage(replyToken, `✅ สถานที่: ${text}\n\nกรุณาพิมพ์ ละติจูด (Lat)\n\nหาได้จาก Google Maps → กดค้างที่จุด → copy ตัวเลขแรกค่ะ`);
+    setUserState(userId, 'CREATE_JOB_PIN');
+    replyMessage(replyToken,
+      `✅ สถานที่: ${text}\n\n` +
+      `📍 กรุณา แชร์ตำแหน่ง (Location) ของจุดที่ให้เช็คอินค่ะ\n\n` +
+      `วิธี: กดไอคอน + ในแชท → Location → เลือกพิกัดที่ต้องการ`
+    );
     return;
   }
 
-  if (state === 'CREATE_JOB_LAT') {
-    if (isNaN(parseFloat(text))) {
-      replyMessage(replyToken, '❌ รูปแบบไม่ถูกต้อง กรุณาพิมพ์ตัวเลข เช่น 13.824786 ค่ะ');
-      return;
-    }
-    setTempData(userId, { ...temp, lat: text });
-    setUserState(userId, 'CREATE_JOB_LNG');
-    replyMessage(replyToken, `✅ Lat: ${text}\n\nกรุณาพิมพ์ ลองจิจูด (Lng) ค่ะ`);
-    return;
-  }
-
-  if (state === 'CREATE_JOB_LNG') {
-    if (isNaN(parseFloat(text))) {
-      replyMessage(replyToken, '❌ รูปแบบไม่ถูกต้อง กรุณาพิมพ์ตัวเลข เช่น 100.418129 ค่ะ');
-      return;
-    }
-    setTempData(userId, { ...temp, lng: text });
-    setUserState(userId, 'CREATE_JOB_RADIUS');
-    replyMessage(replyToken, `✅ Lng: ${text}\n\nกรุณาพิมพ์ รัศมีที่อนุญาต (เมตร)\nเช่น 500 หรือ 1000 ค่ะ`);
+  // state CREATE_JOB_PIN รอรับ location message (จัดการใน handleBotEvent แล้ว)
+  if (state === 'CREATE_JOB_PIN') {
+    replyMessage(replyToken, '📍 กรุณาส่ง Location ค่ะ (กด + → Location)');
     return;
   }
 
