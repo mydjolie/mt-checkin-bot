@@ -59,7 +59,7 @@ function handleCheckIn(data) {
     for (let i = 1; i < existing.length; i++) {
       const row = existing[i];
       if (!row[0]) continue;
-      const rowDate = row[0].toString().slice(0, 10); // dd/MM/yyyy
+      const rowDate = normalizeTimestamp(row[0]).slice(0, 10); // dd/MM/yyyy
       if (row[3] === data.lineUserId && row[1] === data.jobId && rowDate === todayStr) {
         return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
       }
@@ -102,6 +102,14 @@ function handleCheckIn(data) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// แปลงค่า timestamp จากชีท (อาจเป็น Date object หรือ string) เป็น "dd/MM/yyyy HH:mm:ss"
+function normalizeTimestamp(val) {
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
+  }
+  return val.toString();
 }
 
 function getAdminIds(config) {
@@ -346,7 +354,7 @@ function getDailySummary() {
   const byJob = {};
   for (let i = 1; i < data.length; i++) {
     if (!data[i][0]) continue;
-    const ts = data[i][0].toString();
+    const ts = normalizeTimestamp(data[i][0]);
     if (!ts.startsWith(today)) continue;
     const jobName = data[i][2];
     const name = `${data[i][4]} (${data[i][5]})`;
@@ -373,11 +381,11 @@ function getMonthlySummary() {
   const byJob = {};
   for (let i = 1; i < data.length; i++) {
     if (!data[i][0]) continue;
-    const ts = data[i][0].toString();
+    const ts = normalizeTimestamp(data[i][0]);
     const monthYear = ts.slice(3, 10);
     if (monthYear !== thisMonth) continue;
     const jobName = data[i][2];
-    const key = `${data[i][3]}_${data[i][0].toString().slice(0, 10)}`;
+    const key = `${data[i][3]}_${ts.slice(0, 10)}`;
     if (!byJob[jobName]) byJob[jobName] = new Set();
     byJob[jobName].add(key);
   }
@@ -405,7 +413,7 @@ function exportJobSummary(jobId) {
     if (!byPerson[key]) {
       byPerson[key] = { name: row[4], nickname: row[5], team: row[6], days: new Set(), count: 0 };
     }
-    byPerson[key].days.add(row[0].toString().slice(0, 10));
+    byPerson[key].days.add(normalizeTimestamp(row[0]).slice(0, 10));
     byPerson[key].count++;
   }
 
