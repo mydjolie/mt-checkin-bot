@@ -79,16 +79,20 @@ function handleCheckIn(data) {
       data.distance
     ]);
 
-    // แจ้ง Admin
-    const config = getConfig();
-    if (config.admin_line_id && config.admin_line_id !== 'Uxxxxxxxxxxxxxxxxx') {
-      const msg = `🟢 Check-in แจ้งเตือน!\n\n` +
-        `👤 ${data.lineDisplayName} (${data.nickname})\n` +
-        `🏷 ทีม: ${data.team}\n` +
-        `📋 งาน: ${data.jobName}\n` +
-        `🕐 เวลา: ${Utilities.formatDate(now, 'Asia/Bangkok', 'HH:mm')}\n` +
-        `📍 ระยะห่าง: ${data.distance} เมตร`;
-      pushMessage(config.admin_line_id, msg);
+    // แจ้ง Admin (ถ้า push fail ไม่กระทบการบันทึก)
+    try {
+      const config = getConfig();
+      if (config.admin_line_id && config.admin_line_id !== 'Uxxxxxxxxxxxxxxxxx') {
+        const msg = `🟢 Check-in แจ้งเตือน!\n\n` +
+          `👤 ${data.lineDisplayName} (${data.nickname})\n` +
+          `🏷 ทีม: ${data.team}\n` +
+          `📋 งาน: ${data.jobName}\n` +
+          `🕐 เวลา: ${Utilities.formatDate(now, 'Asia/Bangkok', 'HH:mm')}\n` +
+          `📍 ระยะห่าง: ${data.distance} เมตร`;
+        pushMessage(config.admin_line_id, msg);
+      }
+    } catch(notifyErr) {
+      Logger.log('push notify error: ' + notifyErr);
     }
 
     return jsonResponse({ status: 'success' });
