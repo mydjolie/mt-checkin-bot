@@ -79,17 +79,18 @@ function handleCheckIn(data) {
       data.distance
     ]);
 
-    // แจ้ง Admin (ถ้า push fail ไม่กระทบการบันทึก)
+    // แจ้ง Admin ทุกคน (ถ้า push fail ไม่กระทบการบันทึก)
     try {
       const config = getConfig();
-      if (config.admin_line_id && config.admin_line_id !== 'Uxxxxxxxxxxxxxxxxx') {
+      const adminIds = getAdminIds(config);
+      if (adminIds.length > 0) {
         const msg = `🟢 Check-in แจ้งเตือน!\n\n` +
           `👤 ${data.lineDisplayName} (${data.nickname})\n` +
           `🏷 ทีม: ${data.team}\n` +
           `📋 งาน: ${data.jobName}\n` +
           `🕐 เวลา: ${Utilities.formatDate(now, 'Asia/Bangkok', 'HH:mm')}\n` +
           `📍 ระยะห่าง: ${data.distance} เมตร`;
-        pushMessage(config.admin_line_id, msg);
+        adminIds.forEach(id => pushMessage(id, msg));
       }
     } catch(notifyErr) {
       Logger.log('push notify error: ' + notifyErr);
@@ -103,6 +104,11 @@ function handleCheckIn(data) {
   }
 }
 
+function getAdminIds(config) {
+  const ids = config.admin_line_ids || config.admin_line_id || '';
+  return ids.split(',').map(s => s.trim()).filter(s => s && s !== 'Uxxxxxxxxxxxxxxxxx');
+}
+
 // =============================================
 // LINE Bot Event Handler
 // =============================================
@@ -110,7 +116,7 @@ function handleBotEvent(event) {
   const userId = event.source?.userId;
   const replyToken = event.replyToken;
   const config = getConfig();
-  const isAdmin = userId === config.admin_line_id;
+  const isAdmin = getAdminIds(config).includes(userId);
 
   if (event.type === 'follow') {
     replyMessage(replyToken, '👋 ยินดีต้อนรับสู่ระบบตอกบัตร MT!\n\nพิมพ์ "ช่วยเหลือ" เพื่อดูคำสั่งทั้งหมดค่ะ');
@@ -416,8 +422,10 @@ function exportJobSummary(jobId) {
 // =============================================
 function sendDailyNotify() {
   const config = getConfig();
-  if (!config.admin_line_id || config.admin_line_id === 'Uxxxxxxxxxxxxxxxxx') return;
-  pushMessage(config.admin_line_id, getDailySummary());
+  const adminIds = getAdminIds(config);
+  if (adminIds.length === 0) return;
+  const msg = getDailySummary();
+  adminIds.forEach(id => pushMessage(id, msg));
 }
 
 // =============================================
