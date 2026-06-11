@@ -59,8 +59,8 @@ function handleCheckIn(data) {
       const rows = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
-        if (!r[0]) continue;
-        var rDate = Utilities.formatDate(r[0] instanceof Date ? r[0] : new Date(r[0]), 'Asia/Bangkok', 'yyyy-MM-dd');
+        if (!(r[0] instanceof Date)) continue; // ข้าม row ที่ไม่ใช่ Date object
+        var rDate = Utilities.formatDate(r[0], 'Asia/Bangkok', 'yyyy-MM-dd');
         if (r[3] === data.lineUserId && String(r[1]) === String(data.jobId) && rDate === todayISO) {
           return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
         }
@@ -106,19 +106,11 @@ function handleCheckIn(data) {
   }
 }
 
-// แปลงค่า timestamp จากชีท (อาจเป็น Date object หรือ string) เป็น "dd/MM/yyyy HH:mm:ss"
-function normalizeTimestamp(val) {
-  if (val instanceof Date) {
-    return Utilities.formatDate(val, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
-  }
-  return val.toString();
-}
-
 function getAdminIds(config) {
   const ids = (config.admin_line_ids || config.admin_line_id || '').toString();
   return ids.split(',')
     .map(s => s.trim())
-    .filter(s => /^U[0-9a-f]{32}$/i.test(s)); // ต้องเป็น LINE user ID format เท่านั้น
+    .filter(s => /^U[0-9a-f]{32}$/i.test(s));
 }
 
 // =============================================
@@ -139,7 +131,6 @@ function handleBotEvent(event) {
 
   const msgType = event.message.type;
 
-  // รับ location message สำหรับ Admin กำลังสร้างงาน
   if (msgType === 'location' && isAdmin) {
     const state = getUserState(userId);
     if (state === 'CREATE_JOB_PIN') {
@@ -160,7 +151,6 @@ function handleBotEvent(event) {
 
   const text = event.message.text.trim();
 
-  // Admin commands
   if (isAdmin) {
     if (text === 'สร้างงาน') {
       setUserState(userId, 'CREATE_JOB_NAME');
@@ -209,6 +199,16 @@ function handleBotEvent(event) {
 // =============================================
 // สร้างงานใหม่ — State Machine
 // =============================================
+function parseThaiDate(str) {
+  // รับ dd/MM/yyyy หรือ dd/MM/พ.ศ. → คืน Date object หรือ null
+  const m = str.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  var d = parseInt(m[1]), mo = parseInt(m[2]), y = parseInt(m[3]);
+  if (y > 2400) y -= 543; // แปลง พ.ศ. → ค.ศ.
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return new Date(y, mo - 1, d);
+}
+
 function handleCreateJobFlow(userId, replyToken, text, state) {
   const temp = getTempData(userId);
 
@@ -230,7 +230,6 @@ function handleCreateJobFlow(userId, replyToken, text, state) {
     return;
   }
 
-  // state CREATE_JOB_PIN รอรับ location message (จัดการใน handleBotEvent แล้ว)
   if (state === 'CREATE_JOB_PIN') {
     replyMessage(replyToken, '📍 กรุณาส่ง Location ค่ะ (กด + → Location)');
     return;
@@ -243,11 +242,15 @@ function handleCreateJobFlow(userId, replyToken, text, state) {
     }
     setTempData(userId, { ...temp, radius: text });
     setUserState(userId, 'CREATE_JOB_START');
-    replyMessage(replyToken, `✅ รัศมี: ${text} เมตร\n\nกรุณาพิมพ์ วันที่เริ่มงาน\nรูปแบบ dd/MM/yyyy เช่น 11/06/2569 ค่ะ`);
+    replyMessage(replyToken, `✅ รัศมี: ${text} เมตร\n\nกรุณาพิมพ์ วันที่เริ่มงาน\nรูปแบบ dd/MM/yyyy เช่น 11/06/2026 ค่ะ`);
     return;
   }
 
   if (state === 'CREATE_JOB_START') {
+    if (!parseThaiDate(text)) {
+      replyMessage(replyToken, '❌ รูปแบบวันที่ไม่ถูกต้อง\nกรุณาพิมพ์ใหม่ เช่น 11/06/2026 ค่ะ');
+      return;
+    }
     setTempData(userId, { ...temp, startDate: text });
     setUserState(userId, 'CREATE_JOB_END');
     replyMessage(replyToken, `✅ วันเริ่ม: ${text}\n\nกรุณาพิมพ์ วันที่สิ้นสุดงาน\nรูปแบบ dd/MM/yyyy ค่ะ`);
@@ -255,6 +258,10 @@ function handleCreateJobFlow(userId, replyToken, text, state) {
   }
 
   if (state === 'CREATE_JOB_END') {
+    if (!parseThaiDate(text)) {
+      replyMessage(replyToken, '❌ รูปแบบวันที่ไม่ถูกต้อง\nกรุณาพิมพ์ใหม่ เช่น 30/06/2026 ค่ะ');
+      return;
+    }
     setTempData(userId, { ...temp, endDate: text });
     setUserState(userId, 'CREATE_JOB_CONFIRM');
 
@@ -294,13 +301,20 @@ function getActiveJobs() {
   const sheet = ss.getSheetByName('Jobs');
   const data = sheet.getDataRange().getValues();
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const jobs = [];
 
   for (let i = 1; i < data.length; i++) {
     const [jobId, name, lat, lng, radius, startDate, endDate, location, status] = data[i];
-    if (status === 'Active') {
-      jobs.push({ jobId, name, lat: parseFloat(lat), lng: parseFloat(lng), radius: parseFloat(radius), startDate, endDate, location });
-    }
+    if (status !== 'Active') continue;
+    // ตรวจวันที่ start/end — รองรับทั้ง Date object และ string dd/MM/yyyy
+    var start = startDate instanceof Date ? startDate : parseThaiDate(String(startDate));
+    var end = endDate instanceof Date ? endDate : parseThaiDate(String(endDate));
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+    if (start && today < start) continue;
+    if (end && today > end) continue;
+    jobs.push({ jobId, name, lat: parseFloat(lat), lng: parseFloat(lng), radius: parseFloat(radius), startDate, endDate, location });
   }
   return jobs;
 }
@@ -308,8 +322,14 @@ function getActiveJobs() {
 function createJob(d) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName('Jobs');
-  const rows = sheet.getLastRow();
-  const jobId = 'JOB' + String(rows).padStart(3, '0');
+  const data = sheet.getDataRange().getValues();
+  // หา JobID สูงสุดที่มีอยู่แล้ว แล้วบวก 1
+  let maxNum = 0;
+  for (let i = 1; i < data.length; i++) {
+    const m = String(data[i][0]).match(/^JOB(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+  }
+  const jobId = 'JOB' + String(maxNum + 1).padStart(3, '0');
   sheet.appendRow([jobId, d.name, d.lat, d.lng, d.radius, d.startDate, d.endDate, d.location, 'Active']);
   return jobId;
 }
@@ -319,7 +339,7 @@ function archiveJob(jobId) {
   const sheet = ss.getSheetByName('Jobs');
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === jobId) {
+    if (String(data[i][0]) === jobId) {
       sheet.getRange(i + 1, 9).setValue('Archive');
       return `✅ Archive งาน ${jobId} (${data[i][1]}) เรียบร้อยแล้วค่ะ`;
     }
@@ -328,12 +348,17 @@ function archiveJob(jobId) {
 }
 
 function getJobsList() {
-  const jobs = getActiveJobs();
-  if (jobs.length === 0) return '📋 ไม่มีงาน Active อยู่ขณะนี้ค่ะ\n\nพิมพ์ "สร้างงาน" เพื่อเพิ่มงานใหม่';
-  const lines = jobs.map(j =>
-    `📌 ${j.jobId}: ${j.name}\n   📅 ${j.startDate} - ${j.endDate}\n   🏢 ${j.location}`
-  );
-  return `📋 งาน Active ทั้งหมด (${jobs.length} งาน)\n\n${lines.join('\n\n')}`;
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ss.getSheetByName('Jobs');
+  const data = sheet.getDataRange().getValues();
+  const lines = [];
+  for (let i = 1; i < data.length; i++) {
+    const [jobId, name, , , , startDate, endDate, location, status] = data[i];
+    if (status !== 'Active') continue;
+    lines.push(`📌 ${jobId}: ${name}\n   📅 ${startDate} - ${endDate}\n   🏢 ${location}`);
+  }
+  if (lines.length === 0) return '📋 ไม่มีงาน Active อยู่ขณะนี้ค่ะ\n\nพิมพ์ "สร้างงาน" เพื่อเพิ่มงานใหม่';
+  return `📋 งาน Active ทั้งหมด (${lines.length} งาน)\n\n${lines.join('\n\n')}`;
 }
 
 function getConfig() {
@@ -350,23 +375,24 @@ function getConfig() {
 function getDailySummary() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName('CheckIn');
-  const today = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'dd/MM/yyyy');
+  const now = new Date();
+  const todayISO = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd');
+  const todayDisplay = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy');
   const data = sheet.getDataRange().getValues();
 
   const byJob = {};
   for (let i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue;
-    const ts = normalizeTimestamp(data[i][0]);
-    if (!ts.startsWith(today)) continue;
+    if (!(data[i][0] instanceof Date)) continue;
+    if (Utilities.formatDate(data[i][0], 'Asia/Bangkok', 'yyyy-MM-dd') !== todayISO) continue;
     const jobName = data[i][2];
     const name = `${data[i][4]} (${data[i][5]})`;
     if (!byJob[jobName]) byJob[jobName] = [];
     byJob[jobName].push(name);
   }
 
-  if (Object.keys(byJob).length === 0) return `📋 วันที่ ${today}\n\nยังไม่มีการ Check-in วันนี้ค่ะ`;
+  if (Object.keys(byJob).length === 0) return `📋 วันที่ ${todayDisplay}\n\nยังไม่มีการ Check-in วันนี้ค่ะ`;
 
-  let msg = `📋 สรุปการ Check-in วันที่ ${today}\n\n`;
+  let msg = `📋 สรุปการ Check-in วันที่ ${todayDisplay}\n\n`;
   for (const [job, people] of Object.entries(byJob)) {
     msg += `📌 ${job} (${people.length} คน)\n`;
     msg += people.map(p => `   • ${p}`).join('\n') + '\n\n';
@@ -377,24 +403,24 @@ function getDailySummary() {
 function getMonthlySummary() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName('CheckIn');
-  const thisMonth = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'MM/yyyy');
+  const now = new Date();
+  const thisMonthISO = Utilities.formatDate(now, 'Asia/Bangkok', 'MM/yyyy');
   const data = sheet.getDataRange().getValues();
 
   const byJob = {};
   for (let i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue;
-    const ts = normalizeTimestamp(data[i][0]);
-    const monthYear = ts.slice(3, 10);
-    if (monthYear !== thisMonth) continue;
+    if (!(data[i][0] instanceof Date)) continue;
+    const monthYear = Utilities.formatDate(data[i][0], 'Asia/Bangkok', 'MM/yyyy');
+    if (monthYear !== thisMonthISO) continue;
     const jobName = data[i][2];
-    const key = `${data[i][3]}_${ts.slice(0, 10)}`;
+    const dayKey = data[i][3] + '_' + Utilities.formatDate(data[i][0], 'Asia/Bangkok', 'yyyy-MM-dd');
     if (!byJob[jobName]) byJob[jobName] = new Set();
-    byJob[jobName].add(key);
+    byJob[jobName].add(dayKey);
   }
 
-  if (Object.keys(byJob).length === 0) return `📊 เดือน ${thisMonth}\n\nยังไม่มีข้อมูลค่ะ`;
+  if (Object.keys(byJob).length === 0) return `📊 เดือน ${thisMonthISO}\n\nยังไม่มีข้อมูลค่ะ`;
 
-  let msg = `📊 สรุปเดือน ${thisMonth}\n\n`;
+  let msg = `📊 สรุปเดือน ${thisMonthISO}\n\n`;
   for (const [job, days] of Object.entries(byJob)) {
     msg += `📌 ${job}: ${days.size} วัน-คน\n`;
   }
@@ -406,7 +432,7 @@ function exportJobSummary(jobId) {
   const sheet = ss.getSheetByName('CheckIn');
   const data = sheet.getDataRange().getValues();
 
-  const rows = data.filter((r, i) => i > 0 && r[1] === jobId);
+  const rows = data.filter((r, i) => i > 0 && String(r[1]) === String(jobId));
   if (rows.length === 0) return `❌ ไม่พบข้อมูล Check-in สำหรับ ${jobId} ค่ะ`;
 
   const byPerson = {};
@@ -415,7 +441,9 @@ function exportJobSummary(jobId) {
     if (!byPerson[key]) {
       byPerson[key] = { name: row[4], nickname: row[5], team: row[6], days: new Set(), count: 0 };
     }
-    byPerson[key].days.add(normalizeTimestamp(row[0]).slice(0, 10));
+    if (row[0] instanceof Date) {
+      byPerson[key].days.add(Utilities.formatDate(row[0], 'Asia/Bangkok', 'yyyy-MM-dd'));
+    }
     byPerson[key].count++;
   }
 
