@@ -54,28 +54,13 @@ function handleCheckIn(data) {
     const now = new Date();
     const todayStr = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy');
 
-    // ตรวจ duplicate — lineUserId + jobId + วันเดียวกัน
-    var existing = sheet.getDataRange().getValues();
+    // ตรวจ duplicate ด้วย PropertiesService — ไม่ต้องอ่าน sheet เลย
     var todayISO = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy-MM-dd');
-    Logger.log('TODAY ISO: ' + todayISO + ' | lineUserId: ' + data.lineUserId + ' | jobId: ' + data.jobId);
-    for (var i = 1; i < existing.length; i++) {
-      var row = existing[i];
-      if (!row[0]) continue;
-      var rowDateISO;
-      if (row[0] instanceof Date) {
-        rowDateISO = Utilities.formatDate(row[0], 'Asia/Bangkok', 'yyyy-MM-dd');
-      } else {
-        // string format "dd/MM/yyyy HH:mm:ss" → parse to yyyy-MM-dd
-        var parts = row[0].toString().split(' ')[0].split('/');
-        rowDateISO = parts[2] + '-' + parts[1] + '-' + parts[0];
-      }
-      Logger.log('row[' + i + ']: ' + row[3] + ' | ' + row[1] + ' | ' + rowDateISO);
-      if (row[3] === data.lineUserId && row[1] === data.jobId && rowDateISO === todayISO) {
-        Logger.log('DUPLICATE BLOCKED');
-        return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
-      }
+    var dupKey = 'dup_' + data.lineUserId + '_' + data.jobId + '_' + todayISO;
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty(dupKey)) {
+      return jsonResponse({ status: 'duplicate', message: 'ลงเวลางานนี้ไปแล้ววันนี้ค่ะ' });
     }
-    Logger.log('No duplicate — saving');
 
     const timestamp = Utilities.formatDate(now, 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss');
     sheet.appendRow([
@@ -90,6 +75,9 @@ function handleCheckIn(data) {
       data.longitude,
       data.distance
     ]);
+
+    // บันทึก key ป้องกัน duplicate สำหรับวันนี้
+    props.setProperty(dupKey, '1');
 
     // แจ้ง Admin ทุกคน (ถ้า push fail ไม่กระทบการบันทึก)
     try {
