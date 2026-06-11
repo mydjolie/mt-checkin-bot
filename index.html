@@ -12,241 +12,348 @@
       background: #f0f4f8;
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 20px;
     }
     .card {
-      background: #ffffff;
+      background: #fff;
       border-radius: 20px;
-      padding: 36px 28px;
+      padding: 32px 24px;
       width: 100%;
-      max-width: 380px;
+      max-width: 400px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-      text-align: center;
     }
     .logo {
-      width: 64px; height: 64px;
+      width: 60px; height: 60px;
       background: #06C755;
-      border-radius: 16px;
+      border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 20px;
-      font-size: 28px;
+      margin: 0 auto 16px;
+      font-size: 26px;
     }
-    .title { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
-    .subtitle { font-size: 14px; color: #888; margin-bottom: 28px; }
+    h1 { text-align: center; font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+    .subtitle { text-align: center; font-size: 13px; color: #888; margin-bottom: 20px; }
+    .clock { text-align: center; font-size: 38px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; }
+    .date { text-align: center; font-size: 13px; color: #888; margin-bottom: 20px; }
+
     .profile-box {
-      background: #f8fafc; border-radius: 12px; padding: 16px;
-      margin-bottom: 24px; display: flex; align-items: center; gap: 12px; text-align: left;
+      display: flex; align-items: center; gap: 12px;
+      background: #f8fafc; border-radius: 12px; padding: 14px;
+      margin-bottom: 20px;
     }
-    .avatar { width: 48px; height: 48px; border-radius: 50%; background: #e0e7ef; object-fit: cover; flex-shrink: 0; }
-    .profile-info .label { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
-    .profile-info .name { font-size: 16px; font-weight: 600; color: #1a1a2e; }
+    .avatar { width: 44px; height: 44px; border-radius: 50%; background: #e0e7ef; object-fit: cover; flex-shrink: 0; }
+    .profile-info .label { font-size: 10px; color: #aaa; text-transform: uppercase; }
+    .profile-info .name { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+
+    /* Steps */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step-title { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 12px; text-align: center; }
+
+    /* Job List */
+    .job-card {
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .job-card:active, .job-card.selected {
+      border-color: #06C755;
+      background: #f0fdf4;
+    }
+    .job-name { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+    .job-meta { font-size: 12px; color: #888; margin-top: 3px; }
+
+    /* Form */
+    .form-group { margin-bottom: 14px; }
+    .form-label { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px; display: block; }
+    .form-input {
+      width: 100%; padding: 12px 14px;
+      border: 2px solid #e5e7eb; border-radius: 10px;
+      font-size: 15px; outline: none; transition: border 0.15s;
+      font-family: inherit;
+    }
+    .form-input:focus { border-color: #06C755; }
+
+    /* Status */
     .status-box {
-      border-radius: 10px; padding: 12px 16px; margin-bottom: 24px;
-      font-size: 13px; min-height: 44px;
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+      font-size: 13px; text-align: center;
       display: flex; align-items: center; justify-content: center; gap: 8px;
-      background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;
     }
-    .status-box.error { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
-    .status-box.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-    .status-box.loading { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
-    .btn-stamp {
-      width: 100%; padding: 18px;
-      background: #06C755; color: white; border: none;
-      border-radius: 14px; font-size: 18px; font-weight: 700;
-      cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+    .status-box.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .status-box.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .status-box.error { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; }
+    .status-box.loading { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+
+    /* Buttons */
+    .btn {
+      width: 100%; padding: 16px;
+      border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
+      font-family: inherit;
     }
-    .btn-stamp:active { transform: scale(0.97); background: #05a847; }
-    .btn-stamp:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; transform: none; }
-    .time-display { font-size: 36px; font-weight: 700; color: #1a1a2e; letter-spacing: 2px; margin-bottom: 4px; }
-    .date-display { font-size: 14px; color: #888; margin-bottom: 28px; }
-    .success-icon { font-size: 56px; margin-bottom: 16px; }
+    .btn-primary { background: #06C755; color: #fff; }
+    .btn-primary:active { background: #05a847; transform: scale(0.98); }
+    .btn-primary:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; transform: none; }
+    .btn-secondary {
+      background: #f3f4f6; color: #555;
+      margin-top: 8px; font-size: 14px; padding: 12px;
+    }
+
+    /* Success */
+    .success-screen { text-align: center; padding: 20px 0; }
+    .success-icon { font-size: 64px; margin-bottom: 16px; }
     .success-title { font-size: 22px; font-weight: 700; color: #166534; margin-bottom: 8px; }
-    .success-detail { font-size: 14px; color: #555; line-height: 1.6; }
-    #successCard { display: none; }
+    .success-detail { font-size: 14px; color: #555; line-height: 1.8; }
+
+    /* Loading overlay */
+    .loading-screen { text-align: center; padding: 40px 0; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #06C755;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-
-<div class="card" id="mainCard">
+<div class="card">
   <div class="logo">📍</div>
-  <div class="title">MT Check-in</div>
+  <h1>MT Check-in</h1>
   <div class="subtitle">ระบบลงเวลาเข้างาน</div>
-  <div class="time-display" id="clockDisplay">--:--</div>
-  <div class="date-display" id="dateDisplay">กำลังโหลด...</div>
+  <div class="clock" id="clock">--:--</div>
+  <div class="date" id="dateDisplay"></div>
+
   <div class="profile-box">
-    <img class="avatar" id="userAvatar" src="" alt="avatar" onerror="this.style.display='none'">
+    <img class="avatar" id="userAvatar" src="" alt="" onerror="this.style.display='none'">
     <div class="profile-info">
       <div class="label">พนักงาน</div>
-      <div class="name" id="userName">กำลังโหลดโปรไฟล์...</div>
+      <div class="name" id="userName">กำลังโหลด...</div>
     </div>
   </div>
-  <div class="status-box loading" id="statusBox">⏳ กำลังเริ่มต้นระบบ...</div>
-  <button class="btn-stamp" id="stampBtn" onclick="processStamp()" disabled>📍 สแตมป์เวลาเข้างาน</button>
-</div>
 
-<div class="card" id="successCard">
-  <div class="success-icon">✅</div>
-  <div class="success-title">ลงเวลาสำเร็จ!</div>
-  <div class="success-detail" id="successDetail"></div>
+  <!-- Step 0: Loading -->
+  <div class="step active" id="step0">
+    <div class="loading-screen">
+      <div class="spinner"></div>
+      <div style="color:#888;font-size:14px">กำลังโหลดข้อมูล...</div>
+    </div>
+  </div>
+
+  <!-- Step 1: เลือกงาน -->
+  <div class="step" id="step1">
+    <div class="step-title">📋 เลือกงานที่ต้องการ Check-in</div>
+    <div id="jobList"></div>
+    <div class="status-box error" id="noJobMsg" style="display:none">
+      ❌ ไม่มีงาน Active ขณะนี้ กรุณาติดต่อ Admin ค่ะ
+    </div>
+  </div>
+
+  <!-- Step 2: กรอกข้อมูล -->
+  <div class="step" id="step2">
+    <div class="step-title">📝 กรอกข้อมูลเพิ่มเติม</div>
+    <div class="status-box info" id="selectedJobInfo"></div>
+    <div class="form-group">
+      <label class="form-label">ชื่อเล่น *</label>
+      <input class="form-input" id="nickname" type="text" placeholder="เช่น แอม, บอม, ต้น">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ทีม / ฝ่าย *</label>
+      <input class="form-input" id="team" type="text" placeholder="เช่น ทีม A, ฝ่ายขาย, Staff">
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมายเหตุ (ถ้ามี)</label>
+      <input class="form-input" id="remark" type="text" placeholder="เช่น มาแทน, OT">
+    </div>
+    <button class="btn btn-primary" id="btnStamp" onclick="processStamp()">📍 สแตมป์เวลาเข้างาน</button>
+    <button class="btn btn-secondary" onclick="goToStep(1)">← เปลี่ยนงาน</button>
+  </div>
+
+  <!-- Step 3: Processing -->
+  <div class="step" id="step3">
+    <div class="loading-screen">
+      <div class="spinner"></div>
+      <div class="status-box loading" id="stampStatus">📡 กำลังตรวจสอบ GPS...</div>
+    </div>
+  </div>
+
+  <!-- Step 4: Success -->
+  <div class="step" id="step4">
+    <div class="success-screen">
+      <div class="success-icon">✅</div>
+      <div class="success-title">ลงเวลาสำเร็จ!</div>
+      <div class="success-detail" id="successDetail"></div>
+    </div>
+  </div>
+
+  <!-- Step 5: Error -->
+  <div class="step" id="step5">
+    <div class="status-box error" id="errorMsg"></div>
+    <button class="btn btn-primary" onclick="goToStep(2)" style="margin-top:8px">← ลองใหม่</button>
+  </div>
 </div>
 
 <script>
-  // =============================================
-  // CONFIG — แก้แค่ 2 บรรทัดนี้
-  // =============================================
   const LIFF_ID = "2010366667-MfXxtvVD";
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz6FfOt9IIf2BM8Q0McqbC4EFqiteIzO80g54wywJI5QF1KigVFLJA-xtx_k971y-uh/exec";
-  // =============================================
 
-  let targetConfig = {
-    projectName: "MT Check-in",
-    latitude: null,
-    longitude: null,
-    maxRadiusMeters: 1000
-  };
-  let userProfile = { userId: "", displayName: "", pictureUrl: "" };
-  let configLoaded = false;
-  let profileLoaded = false;
+  let userProfile = {};
+  let selectedJob = null;
+  let allJobs = [];
 
-  // นาฬิกา Real-time
+  // Clock
   function updateClock() {
     const now = new Date();
-    document.getElementById('clockDisplay').innerText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+    document.getElementById('clock').innerText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
     document.getElementById('dateDisplay').innerText = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' });
   }
   updateClock();
   setInterval(updateClock, 1000);
 
-  function setStatus(msg, type = '') {
-    const box = document.getElementById('statusBox');
-    box.innerText = msg;
-    box.className = 'status-box ' + type;
+  function goToStep(n) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step' + n).classList.add('active');
   }
 
-  function tryEnableButton() {
-    if (configLoaded && profileLoaded) {
-      document.getElementById('stampBtn').disabled = false;
-      setStatus('✅ ระบบพร้อมใช้งาน');
+  // Init
+  async function init() {
+    try {
+      // โหลด LIFF และ Jobs พร้อมกัน
+      const [_, jobData] = await Promise.all([
+        liff.init({ liffId: LIFF_ID }),
+        fetch(WEB_APP_URL).then(r => r.json())
+      ]);
+
+      // Profile
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+      const profile = await liff.getProfile();
+      userProfile = { userId: profile.userId, displayName: profile.displayName, pictureUrl: profile.pictureUrl };
+      document.getElementById('userName').innerText = profile.displayName;
+      document.getElementById('userAvatar').src = profile.pictureUrl;
+
+      // Jobs
+      allJobs = jobData.jobs || [];
+      renderJobList();
+      goToStep(1);
+
+    } catch(err) {
+      document.getElementById('step0').innerHTML = `<div class="status-box error">❌ โหลดไม่สำเร็จ: ${err.message}</div>`;
     }
   }
 
-  // โหลด Config จาก Apps Script (พิกัด + รัศมี)
-  fetch(WEB_APP_URL)
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'success' && data.config) {
-        targetConfig.latitude = parseFloat(data.config.office_lat);
-        targetConfig.longitude = parseFloat(data.config.office_lng);
-        targetConfig.maxRadiusMeters = parseFloat(data.config.radius_meter) || 1000;
-        targetConfig.projectName = data.config.project_name || 'MT Check-in';
-        configLoaded = true;
-        tryEnableButton();
-      } else {
-        setStatus('❌ โหลด Config ไม่สำเร็จ', 'error');
-      }
-    })
-    .catch(err => {
-      setStatus('❌ เชื่อมต่อ Server ไม่ได้', 'error');
-    });
+  function renderJobList() {
+    const container = document.getElementById('jobList');
+    if (allJobs.length === 0) {
+      document.getElementById('noJobMsg').style.display = 'flex';
+      return;
+    }
+    container.innerHTML = allJobs.map(job => `
+      <div class="job-card" onclick="selectJob('${job.jobId}')">
+        <div class="job-name">📌 ${job.name}</div>
+        <div class="job-meta">🏢 ${job.location}</div>
+        <div class="job-meta">📅 ${job.startDate} — ${job.endDate}</div>
+      </div>
+    `).join('');
+  }
 
-  // Init LIFF
-  liff.init({ liffId: LIFF_ID })
-    .then(() => {
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
-        return liff.getProfile();
-      }
-    })
-    .then((profile) => {
-      if (profile) {
-        userProfile.userId = profile.userId;
-        userProfile.displayName = profile.displayName;
-        userProfile.pictureUrl = profile.pictureUrl;
-        document.getElementById('userName').innerText = profile.displayName;
-        document.getElementById('userAvatar').src = profile.pictureUrl;
-        profileLoaded = true;
-        tryEnableButton();
-      }
-    })
-    .catch((err) => {
-      setStatus('❌ LIFF Error: ' + err.message, 'error');
-    });
+  function selectJob(jobId) {
+    selectedJob = allJobs.find(j => j.jobId === jobId);
+    document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+    document.getElementById('selectedJobInfo').innerText = `📌 ${selectedJob.name}\n🏢 ${selectedJob.location}`;
+    setTimeout(() => goToStep(2), 300);
+  }
 
-  // Process Stamp
   function processStamp() {
-    document.getElementById('stampBtn').disabled = true;
-    setStatus('📡 กำลังตรวจสอบพิกัด GPS...', 'loading');
+    const nickname = document.getElementById('nickname').value.trim();
+    const team = document.getElementById('team').value.trim();
+    if (!nickname) { alert('กรุณากรอกชื่อเล่นค่ะ'); return; }
+    if (!team) { alert('กรุณากรอกทีม/ฝ่ายค่ะ'); return; }
+
+    goToStep(3);
+    document.getElementById('stampStatus').innerText = '📡 กำลังตรวจสอบ GPS...';
 
     if (!navigator.geolocation) {
-      setStatus('❌ อุปกรณ์ไม่รองรับ GPS', 'error');
-      document.getElementById('stampBtn').disabled = false;
+      showError('อุปกรณ์ไม่รองรับ GPS ค่ะ');
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const uLat = position.coords.latitude;
-        const uLon = position.coords.longitude;
-        const distance = calculateDistance(uLat, uLon, targetConfig.latitude, targetConfig.longitude);
+      async (pos) => {
+        const uLat = pos.coords.latitude;
+        const uLng = pos.coords.longitude;
+        const dist = calcDistance(uLat, uLng, selectedJob.lat, selectedJob.lng);
 
-        if (distance > targetConfig.maxRadiusMeters) {
-          setStatus(`❌ อยู่นอกพื้นที่ ${Math.round(distance)} เมตร (อนุญาต ${targetConfig.maxRadiusMeters} เมตร)`, 'error');
-          document.getElementById('stampBtn').disabled = false;
+        if (dist > selectedJob.radius) {
+          showError(`❌ อยู่นอกพื้นที่ค่ะ\n📍 ระยะห่าง ${Math.round(dist)} เมตร\n(อนุญาตไม่เกิน ${selectedJob.radius} เมตร)`);
           return;
         }
 
-        setStatus('📤 กำลังบันทึกข้อมูล...', 'loading');
+        document.getElementById('stampStatus').innerText = '📤 กำลังบันทึกข้อมูล...';
 
-        fetch(WEB_APP_URL, {
-          method: "POST",
-          body: JSON.stringify({
-            projectName: targetConfig.projectName,
-            lineUserId: userProfile.userId,
-            employeeName: userProfile.displayName,
-            latitude: uLat,
-            longitude: uLon,
-            distanceCalculated: Math.round(distance)
-          })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === "success") {
-            document.getElementById('mainCard').style.display = 'none';
-            document.getElementById('successCard').style.display = 'block';
+        try {
+          const res = await fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'checkin',
+              jobId: selectedJob.jobId,
+              jobName: selectedJob.name,
+              lineUserId: userProfile.userId,
+              lineDisplayName: userProfile.displayName,
+              nickname: document.getElementById('nickname').value.trim(),
+              team: document.getElementById('team').value.trim(),
+              remark: document.getElementById('remark').value.trim(),
+              latitude: uLat,
+              longitude: uLng,
+              distance: Math.round(dist)
+            })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
             const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
             document.getElementById('successDetail').innerHTML =
-              `👤 ${userProfile.displayName}<br>🕐 ${time}<br>📍 ระยะห่าง ${Math.round(distance)} เมตร`;
-            setTimeout(() => liff.closeWindow(), 3000);
+              `👤 ${userProfile.displayName}<br>` +
+              `🏷 ${document.getElementById('nickname').value.trim()} | ${document.getElementById('team').value.trim()}<br>` +
+              `📌 ${selectedJob.name}<br>` +
+              `🕐 ${time}<br>` +
+              `📍 ระยะห่าง ${Math.round(dist)} เมตร`;
+            goToStep(4);
+            setTimeout(() => liff.closeWindow(), 4000);
           } else {
-            throw new Error(data.message);
+            showError('บันทึกไม่สำเร็จ: ' + (data.message || 'Unknown error'));
           }
-        })
-        .catch(err => {
-          setStatus('❌ บันทึกไม่สำเร็จ: ' + err.message, 'error');
-          document.getElementById('stampBtn').disabled = false;
-        });
+        } catch(err) {
+          showError('เชื่อมต่อ Server ไม่ได้ค่ะ: ' + err.message);
+        }
       },
-      (error) => {
-        setStatus('❌ ดึง GPS ไม่ได้ กรุณาเปิด Location', 'error');
-        document.getElementById('stampBtn').disabled = false;
-      },
+      (err) => showError('ดึง GPS ไม่ได้ กรุณาเปิด Location Service ค่ะ'),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }
 
-  function calculateDistance(lat1, lon1, lat2, lon2) {
+  function showError(msg) {
+    document.getElementById('errorMsg').innerText = msg;
+    goToStep(5);
+  }
+
+  function calcDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) ** 2 +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) ** 2;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
+
+  init();
 </script>
 </body>
 </html>
