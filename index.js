@@ -108,19 +108,19 @@ async function getDailySummary() {
     spreadsheetId: SHEET_ID,
     range: 'CheckIn!A2:J1000'
   });
-  const today = new Date().toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
-  // A=Timestamp, C=ชื่องาน, E=ชื่อใน LINE, F=ชื่อเล่น, G=ทีม, J=ระยะห่าง
-  const rows = (res.data.values || []).filter(r => {
-    if (!r[0]) return false;
-    const d = new Date(r[0]).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' });
-    return d === today;
-  });
-  if (rows.length === 0) return `📋 วันที่ ${today}\n\nยังไม่มีใครเข้างานค่ะ`;
+  // timestamp format from Apps Script: "dd/MM/yyyy HH:mm:ss"
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
+
+  const rows = (res.data.values || []).filter(r => r[0] && r[0].startsWith(todayStr));
+  const displayDate = todayStr;
+  if (rows.length === 0) return `📋 วันที่ ${displayDate}\n\nยังไม่มีการ Check-in วันนี้ค่ะ`;
   const lines = rows.map(r => {
-    const time = new Date(r[0]).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+    const time = r[0].slice(11, 16); // HH:mm
     return `• ${r[5] || r[4]} (${r[6]}) — ${r[2]} — ${time} น.`;
   });
-  return `📋 สรุปการเข้างาน — ${today}\n\n✅ เข้างานแล้ว (${rows.length} คน)\n${lines.join('\n')}`;
+  return `📋 สรุปการ Check-in วันที่ ${displayDate}\n\n✅ เข้างานแล้ว (${rows.length} คน)\n${lines.join('\n')}`;
 }
 
 async function getMonthlySummary() {
@@ -129,25 +129,23 @@ async function getMonthlySummary() {
     spreadsheetId: SHEET_ID,
     range: 'CheckIn!A2:J1000'
   });
+  // timestamp format: "dd/MM/yyyy HH:mm:ss" → slice(3,10) = "MM/yyyy"
   const now = new Date();
-  const thisMonthStr = now.toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', month: 'long', year: 'numeric' });
-  const thisMonth = now.getMonth();
-  const thisYear = now.getFullYear();
+  const pad = n => String(n).padStart(2, '0');
+  const thisMonthStr = `${pad(now.getMonth()+1)}/${now.getFullYear()}`;
 
   const countByName = {};
   (res.data.values || []).forEach(r => {
     if (!r[0]) return;
-    const d = new Date(r[0]);
-    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
-      const key = `${r[5] || r[4]} (${r[6]})`;
-      countByName[key] = (countByName[key] || 0) + 1;
-    }
+    if (r[0].slice(3, 10) !== thisMonthStr) return;
+    const key = `${r[5] || r[4]} (${r[6]})`;
+    countByName[key] = (countByName[key] || 0) + 1;
   });
 
   const entries = Object.entries(countByName);
-  if (entries.length === 0) return `📋 เดือน ${thisMonthStr}\n\nยังไม่มีข้อมูลค่ะ`;
+  if (entries.length === 0) return `📊 เดือน ${thisMonthStr}\n\nยังไม่มีข้อมูลค่ะ`;
   const lines = entries.map(([name, days]) => `• ${name}: ${days} วัน`);
-  return `📋 สรุปการเข้างาน — ${thisMonthStr}\n\n${lines.join('\n')}\n\nรวม ${entries.length} คน`;
+  return `📊 สรุปการเข้างาน — ${thisMonthStr}\n\n${lines.join('\n')}\n\nรวม ${entries.length} คน`;
 }
 
 
