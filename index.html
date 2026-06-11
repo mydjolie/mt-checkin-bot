@@ -204,7 +204,7 @@
 
 <script>
   const LIFF_ID = "2010366667-MfXxtvVD";
-  let WEB_APP_URL = "";
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw70QpE9cJkeYfsX4xRDXI-2g1VajNxNG3xv09ZRJnvJVtq0Yeq8YaRuSoCRu52a8yL/exec";
 
   let userProfile = {};
   let selectedJob = null;
@@ -227,9 +227,6 @@
   // Init
   async function init() {
     try {
-      const cfg = await fetch('/config').then(r => r.json());
-      WEB_APP_URL = cfg.webAppUrl;
-
       // โหลด LIFF และ Jobs พร้อมกัน
       const [_, jobData] = await Promise.all([
         liff.init({ liffId: LIFF_ID }),

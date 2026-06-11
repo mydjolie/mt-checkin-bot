@@ -8,7 +8,6 @@ const lineConfig = {
   channelAccessToken: process.env.LINE_TOKEN,
   channelSecret: process.env.LINE_SECRET,
 };
-
 const client = new line.messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_TOKEN,
 });
@@ -20,142 +19,207 @@ const auth = new google.auth.GoogleAuth({
 const SHEET_ID = process.env.SHEET_ID;
 const LIFF_URL = `https://liff.line.me/${process.env.LIFF_ID || '2010366667-MfXxtvVD'}`;
 
-// =============================================
-// Webhook Endpoint
-// =============================================
-app.use(express.static(__dirname));
+// state machine for สร้างงาน — in-memory (admin-only, low frequency)
+const userState = new Map(); // userId → { state, temp }
 
+// =============================================
+// Webhook
+// =============================================
 app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
   res.status(200).send('OK');
   try {
     await Promise.all(req.body.events.map(handleEvent));
-  } catch (err) {
-    console.error(err);
-  }
+  } catch (err) { console.error(err); }
 });
 
 app.get('/', (req, res) => res.send('MT Check-in Bot is running!'));
-app.get('/config', (req, res) => res.json({ webAppUrl: process.env.WEB_APP_URL }));
 
 // =============================================
-// Handle Event
+// Event Handler
 // =============================================
 async function handleEvent(event) {
   if (event.type === 'follow') {
-    return client.replyMessage({
-      replyToken: event.replyToken,
-      messages: [{ type: 'text', text: `👋 ยินดีต้อนรับสู่ระบบตอกบัตร!\n\nกดลิงก์นี้เพื่อ Check-in ค่ะ 👇\n${LIFF_URL}` }]
-    });
+    return reply(event.replyToken, `👋 ยินดีต้อนรับ!\n\nพิมพ์ "ช่วยเหลือ" เพื่อดูคำสั่งค่ะ`);
   }
 
-  if (event.type !== 'message' || event.message.type !== 'text') return;
+  if (event.type !== 'message') return;
 
   const userId = event.source.userId;
   const replyToken = event.replyToken;
+  const config = await getConfig();
+  const adminIds = parseAdminIds(config);
+  const isAdmin = adminIds.includes(userId);
+  const st = userState.get(userId) || {};
+
+  // รับ location สำหรับ สร้างงาน flow
+  if (event.message.type === 'location' && isAdmin && st.state === 'CREATE_JOB_PIN') {
+    const { latitude: lat, longitude: lng } = event.message;
+    userState.set(userId, { state: 'CREATE_JOB_RADIUS', temp: { ...st.temp, lat, lng } });
+    return reply(replyToken, `✅ พิกัด: ${lat.toFixed(6)}, ${lng.toFixed(6)}\n\nกรุณาพิมพ์ รัศมี (เมตร) เช่น 200`);
+  }
+
+  if (event.message.type !== 'text') return;
+
   const text = event.message.text.trim();
 
-  const config = await getConfig();
-  const adminIds = getAdminIds(config);
-  const isAdmin = adminIds.includes(userId);
+  // สร้างงาน state machine
+  if (isAdmin && st.state && st.state.startsWith('CREATE_JOB_')) {
+    return handleCreateJobFlow(userId, replyToken, text, st);
+  }
 
+  // คำสั่งทั่วไป
   if (text === 'เข้างาน') {
-    return client.replyMessage({
-      replyToken,
-      messages: [{ type: 'text', text: `📍 กดลิงก์นี้เพื่อ Check-in ค่ะ 👇\n${LIFF_URL}` }]
-    });
+    return reply(replyToken, `📍 กดลิงก์เพื่อ Check-in ค่ะ 👇\n${LIFF_URL}`);
   }
 
   if (text === 'ช่วยเหลือ' || text === 'help') {
-    const helpText = isAdmin
-      ? `🛠 คำสั่ง Admin\n\n📋 รายการงาน — ดูงาน Active\n📊 สรุปวันนี้ — ยอด Check-in วันนี้\n📈 สรุปเดือนนี้ — ยอดรายเดือน\n📤 export JOB001 — สรุปงานนั้น\n🗄 archive JOB001 — ปิดงานนั้น\n\n➕ สร้างงานใหม่ผ่าน LINE Bot ได้โดยพิมพ์ "สร้างงาน"`
-      : `👋 ระบบตอกบัตร MT\n\nกดลิงก์ด้านล่างเพื่อ Check-in ค่ะ 👇\n${LIFF_URL}`;
-    return client.replyMessage({ replyToken, messages: [{ type: 'text', text: helpText }] });
+    return reply(replyToken, isAdmin ? ADMIN_HELP : `👋 ระบบตอกบัตร MT\n\nกด Check-in ได้เลยค่ะ 👇\n${LIFF_URL}`);
   }
 
-  if (isAdmin) {
-    if (text === 'สรุปวันนี้') {
-      return client.replyMessage({ replyToken, messages: [{ type: 'text', text: await getDailySummary() }] });
-    }
-    if (text === 'สรุปเดือนนี้') {
-      return client.replyMessage({ replyToken, messages: [{ type: 'text', text: await getMonthlySummary() }] });
-    }
+  if (!isAdmin) {
+    return reply(replyToken, `📍 กด Check-in ได้เลยค่ะ 👇\n${LIFF_URL}`);
   }
 
-  return client.replyMessage({
-    replyToken,
-    messages: [{ type: 'text', text: `📍 กด Check-in ได้เลยค่ะ 👇\n${LIFF_URL}` }]
-  });
+  // Admin commands
+  if (text === 'สร้างงาน') {
+    userState.set(userId, { state: 'CREATE_JOB_NAME', temp: {} });
+    return reply(replyToken, '📋 สร้างงานใหม่\n\nกรุณาพิมพ์ ชื่องาน ค่ะ');
+  }
+  if (text === 'รายการงาน') return reply(replyToken, await getJobsList());
+  if (text === 'สรุปวันนี้') return reply(replyToken, await getDailySummary());
+  if (text === 'สรุปเดือนนี้') return reply(replyToken, await getMonthlySummary());
+  if (text.startsWith('archive ')) {
+    return reply(replyToken, await archiveJob(text.replace('archive ', '').trim().toUpperCase()));
+  }
+  if (text.startsWith('export ')) {
+    return reply(replyToken, await exportJobSummary(text.replace('export ', '').trim().toUpperCase()));
+  }
+
+  return reply(replyToken, ADMIN_HELP);
 }
 
 // =============================================
-// Google Sheets Functions
+// สร้างงาน Flow
+// =============================================
+async function handleCreateJobFlow(userId, replyToken, text, st) {
+  const temp = st.temp || {};
+
+  if (st.state === 'CREATE_JOB_NAME') {
+    userState.set(userId, { state: 'CREATE_JOB_LOCATION', temp: { ...temp, name: text } });
+    return reply(replyToken, `✅ ชื่องาน: ${text}\n\nกรุณาพิมพ์ สถานที่จัดงาน ค่ะ`);
+  }
+  if (st.state === 'CREATE_JOB_LOCATION') {
+    userState.set(userId, { state: 'CREATE_JOB_PIN', temp: { ...temp, location: text } });
+    return reply(replyToken, `✅ สถานที่: ${text}\n\n📍 กรุณาส่ง Location (กด + → Location) ค่ะ`);
+  }
+  if (st.state === 'CREATE_JOB_PIN') {
+    return reply(replyToken, '📍 กรุณาส่ง Location ค่ะ (กด + → Location)');
+  }
+  if (st.state === 'CREATE_JOB_RADIUS') {
+    if (isNaN(parseInt(text))) return reply(replyToken, '❌ กรุณาพิมพ์ตัวเลข เช่น 200');
+    userState.set(userId, { state: 'CREATE_JOB_START', temp: { ...temp, radius: text } });
+    return reply(replyToken, `✅ รัศมี: ${text} เมตร\n\nวันที่เริ่มงาน (dd/MM/yyyy) เช่น 11/06/2026`);
+  }
+  if (st.state === 'CREATE_JOB_START') {
+    if (!parseDate(text)) return reply(replyToken, '❌ รูปแบบไม่ถูกต้อง เช่น 11/06/2026');
+    userState.set(userId, { state: 'CREATE_JOB_END', temp: { ...temp, startDate: text } });
+    return reply(replyToken, `✅ วันเริ่ม: ${text}\n\nวันที่สิ้นสุดงาน (dd/MM/yyyy)`);
+  }
+  if (st.state === 'CREATE_JOB_END') {
+    if (!parseDate(text)) return reply(replyToken, '❌ รูปแบบไม่ถูกต้อง เช่น 30/06/2026');
+    const d = { ...temp, endDate: text };
+    userState.set(userId, { state: 'CREATE_JOB_CONFIRM', temp: d });
+    return reply(replyToken,
+      `📋 ยืนยันสร้างงาน\n\n📌 ${d.name}\n🏢 ${d.location}\n📍 ${d.lat?.toFixed(4)}, ${d.lng?.toFixed(4)}\n🎯 ${d.radius} เมตร\n📅 ${d.startDate} - ${text}\n\nพิมพ์ "ยืนยัน" หรือ "ยกเลิก"`);
+  }
+  if (st.state === 'CREATE_JOB_CONFIRM') {
+    userState.delete(userId);
+    if (text === 'ยืนยัน') {
+      const jobId = await createJob(temp);
+      return reply(replyToken, `✅ สร้างงานสำเร็จ!\nJobID: ${jobId}\nชื่อ: ${temp.name}`);
+    }
+    return reply(replyToken, '❌ ยกเลิกแล้วค่ะ');
+  }
+  userState.delete(userId);
+}
+
+// =============================================
+// Google Sheets Helpers
 // =============================================
 async function getSheets() {
-  const authClient = await auth.getClient();
-  return google.sheets({ version: 'v4', auth: authClient });
+  return google.sheets({ version: 'v4', auth: await auth.getClient() });
 }
 
 async function getConfig() {
   const sheets = await getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: 'Config!A2:B10'
-  });
-  const config = {};
-  (res.data.values || []).forEach(([k, v]) => { config[k] = v; });
-  return config;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Config!A2:B20' });
+  const cfg = {};
+  (res.data.values || []).forEach(([k, v]) => { if (k) cfg[k] = v; });
+  return cfg;
 }
 
-function getAdminIds(config) {
-  const ids = (config.admin_line_ids || config.admin_line_id || '');
-  return ids.split(',').map(s => s.trim()).filter(s => /^U[0-9a-f]{32}$/i.test(s));
+function parseAdminIds(config) {
+  return ((config.admin_line_ids || config.admin_line_id || '') + '')
+    .split(',').map(s => s.trim()).filter(s => /^U[0-9a-f]{32}$/i.test(s));
+}
+
+// แปลง cell value จาก Sheets API (number = serial date, string = formatted text)
+function cellToDateStr(val) {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') {
+    // Google Sheets serial → Bangkok yyyy-MM-dd
+    const ms = (val - 25569) * 86400000; // 25569 = days 1899-12-30 → 1970-01-01
+    const bangkokMs = ms + 7 * 3600000;
+    return new Date(bangkokMs).toISOString().slice(0, 10);
+  }
+  // string: "dd/MM/yyyy ..." หรือ "M/D/YYYY ..."
+  const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    const [, a, b, y] = m;
+    // ถ้า a > 12 แน่นอนว่าเป็น dd/MM/yyyy, ถ้าไม่ก็สมมติ dd/MM/yyyy (Thai format)
+    return `${y}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function todayBangkok() {
+  return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+}
+
+function parseDate(str) {
+  const m = str.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  if (parseInt(mo) < 1 || parseInt(mo) > 12 || parseInt(d) < 1 || parseInt(d) > 31) return null;
+  return new Date(parseInt(y), parseInt(mo) - 1, parseInt(d));
 }
 
 async function getCheckInRows() {
   const sheets = await getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'CheckIn!A2:J1000',
-    dateTimeRenderOption: 'FORMATTED_STRING',
-    valueRenderOption: 'FORMATTED_VALUE',
+    range: 'CheckIn!A2:J2000',
+    valueRenderOption: 'UNFORMATTED_VALUE',
+    dateTimeRenderOption: 'SERIAL_NUMBER',
   });
   return res.data.values || [];
 }
 
-// แปลง timestamp string จาก Sheets API → Date (รองรับหลาย format)
-function parseSheetDate(str) {
-  if (!str) return null;
-  // format: "DD/MM/YYYY HH:MM:SS" หรือ "M/D/YYYY H:MM:SS AM/PM"
-  const m1 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m1) {
-    // ลอง dd/MM/yyyy ก่อน (Thai locale)
-    const d = new Date(parseInt(m1[3]), parseInt(m1[2]) - 1, parseInt(m1[1]));
-    if (!isNaN(d)) return d;
-  }
-  return null;
-}
-
 async function getDailySummary() {
   const rows = await getCheckInRows();
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const todayDisplay = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
-
+  const today = todayBangkok();
   const byJob = {};
   for (const r of rows) {
     if (!r[0]) continue;
-    const d = parseSheetDate(r[0]);
-    if (!d) continue;
-    const dStr = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
-    if (dStr !== todayDisplay) continue;
-    const jobName = r[2] || '-';
-    const name = `${r[5] || r[4]} (${r[6]})`;
-    if (!byJob[jobName]) byJob[jobName] = [];
-    byJob[jobName].push(name);
+    if (cellToDateStr(r[0]) !== today) continue;
+    const job = r[2] || '-';
+    if (!byJob[job]) byJob[job] = [];
+    byJob[job].push(`${r[5] || r[4]} (${r[6]})`);
   }
-
-  if (Object.keys(byJob).length === 0) return `📋 วันที่ ${todayDisplay}\n\nยังไม่มีการ Check-in วันนี้ค่ะ`;
-  let msg = `📋 สรุปการ Check-in วันที่ ${todayDisplay}\n\n`;
+  const [d, m, y] = today.split('-').reverse();
+  const display = `${d}/${m}/${y}`;
+  if (!Object.keys(byJob).length) return `📋 วันที่ ${display}\n\nยังไม่มีการ Check-in ค่ะ`;
+  let msg = `📋 สรุป Check-in วันที่ ${display}\n\n`;
   for (const [job, people] of Object.entries(byJob)) {
     msg += `📌 ${job} (${people.length} คน)\n${people.map(p => `   • ${p}`).join('\n')}\n\n`;
   }
@@ -164,30 +228,97 @@ async function getDailySummary() {
 
 async function getMonthlySummary() {
   const rows = await getCheckInRows();
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const thisMonth = `${pad(now.getMonth()+1)}/${now.getFullYear()}`;
-
+  const thisMonth = todayBangkok().slice(0, 7); // "2026-06"
   const byJob = {};
   for (const r of rows) {
     if (!r[0]) continue;
-    const d = parseSheetDate(r[0]);
-    if (!d) continue;
-    const monthYear = `${pad(d.getMonth()+1)}/${d.getFullYear()}`;
-    if (monthYear !== thisMonth) continue;
-    const jobName = r[2] || '-';
-    const key = `${r[3]}_${pad(d.getDate())}/${monthYear}`;
-    if (!byJob[jobName]) byJob[jobName] = new Set();
-    byJob[jobName].add(key);
+    const ds = cellToDateStr(r[0]);
+    if (!ds || ds.slice(0, 7) !== thisMonth) continue;
+    const job = r[2] || '-';
+    if (!byJob[job]) byJob[job] = new Set();
+    byJob[job].add(`${r[3]}_${ds}`);
   }
-
-  if (Object.keys(byJob).length === 0) return `📊 เดือน ${thisMonth}\n\nยังไม่มีข้อมูลค่ะ`;
-  let msg = `📊 สรุปเดือน ${thisMonth}\n\n`;
+  const [y, m] = thisMonth.split('-');
+  const display = `${m}/${y}`;
+  if (!Object.keys(byJob).length) return `📊 เดือน ${display}\n\nยังไม่มีข้อมูลค่ะ`;
+  let msg = `📊 สรุปเดือน ${display}\n\n`;
   for (const [job, days] of Object.entries(byJob)) {
     msg += `📌 ${job}: ${days.size} วัน-คน\n`;
   }
   return msg.trim();
 }
+
+async function getJobsList() {
+  const sheets = await getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID, range: 'Jobs!A2:I100',
+    valueRenderOption: 'FORMATTED_VALUE',
+  });
+  const rows = (res.data.values || []).filter(r => r[8] === 'Active');
+  if (!rows.length) return '📋 ไม่มีงาน Active ค่ะ\n\nพิมพ์ "สร้างงาน" เพื่อเพิ่ม';
+  return `📋 งาน Active (${rows.length} งาน)\n\n` +
+    rows.map(r => `📌 ${r[0]}: ${r[1]}\n   📅 ${r[5]} - ${r[6]}\n   🏢 ${r[7]}`).join('\n\n');
+}
+
+async function createJob(d) {
+  const sheets = await getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID, range: 'Jobs!A2:A100' });
+  const rows = res.data.values || [];
+  let maxNum = 0;
+  rows.forEach(([id]) => {
+    const m = String(id || '').match(/^JOB(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+  });
+  const jobId = 'JOB' + String(maxNum + 1).padStart(3, '0');
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID, range: 'Jobs!A1',
+    valueInputOption: 'USER_ENTERED',
+    resource: { values: [[jobId, d.name, d.lat, d.lng, d.radius, d.startDate, d.endDate, d.location, 'Active']] }
+  });
+  return jobId;
+}
+
+async function archiveJob(jobId) {
+  const sheets = await getSheets();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Jobs!A2:I100' });
+  const rows = res.data.values || [];
+  const idx = rows.findIndex(r => String(r[0]) === jobId);
+  if (idx === -1) return `❌ ไม่พบ ${jobId}`;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID, range: `Jobs!I${idx + 2}`,
+    valueInputOption: 'RAW',
+    resource: { values: [['Archive']] }
+  });
+  return `✅ Archive ${jobId} (${rows[idx][1]}) แล้วค่ะ`;
+}
+
+async function exportJobSummary(jobId) {
+  const rows = await getCheckInRows();
+  const filtered = rows.filter((r, i) => i >= 0 && String(r[1]) === jobId);
+  if (!filtered.length) return `❌ ไม่พบ Check-in สำหรับ ${jobId}`;
+  const byPerson = {};
+  for (const r of filtered) {
+    const key = r[3];
+    if (!byPerson[key]) byPerson[key] = { name: r[4], nick: r[5], team: r[6], days: new Set(), count: 0 };
+    const ds = cellToDateStr(r[0]);
+    if (ds) byPerson[key].days.add(ds);
+    byPerson[key].count++;
+  }
+  let msg = `📊 Export ${jobId}\n\nรวม ${Object.keys(byPerson).length} คน\n\n`;
+  for (const p of Object.values(byPerson)) {
+    msg += `👤 ${p.name} (${p.nick}) ทีม: ${p.team}\n   ${p.days.size} วัน / ${p.count} ครั้ง\n`;
+  }
+  return msg.trim();
+}
+
+function reply(replyToken, text) {
+  return client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
+}
+
+const ADMIN_HELP = `🛠 คำสั่ง Admin\n\n` +
+  `📋 รายการงาน\n➕ สร้างงาน\n📊 สรุปวันนี้\n📈 สรุปเดือนนี้\n` +
+  `📤 export JOB001\n🗄 archive JOB001`;
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Bot running on port ${PORT}`));
