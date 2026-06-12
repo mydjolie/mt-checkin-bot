@@ -84,7 +84,12 @@ app.post('/checkin', async (req, res) => {
 // LINE Webhook
 // =============================================
 app.get('/webhook', (req, res) => res.sendStatus(200));
-app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
+app.post('/webhook', (req, res, next) => {
+  console.log('[webhook] rawBody length:', req.rawBody ? req.rawBody.length : 'undefined');
+  console.log('[webhook] secret length:', (process.env.LINE_SECRET || '').length, '| last char code:', (process.env.LINE_SECRET || '').charCodeAt((process.env.LINE_SECRET || '').length - 1));
+  console.log('[webhook] signature header:', req.headers['x-line-signature'] ? 'present' : 'missing');
+  next();
+}, line.middleware(lineConfig), async (req, res) => {
   res.status(200).send('OK');
   try {
     await Promise.all(req.body.events.map(handleEvent));
