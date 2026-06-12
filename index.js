@@ -103,7 +103,6 @@ async function handleCheckIn(data) {
   }
 
   const sheets = await getSheets();
-  const sheet = await getSheet(sheets, 'CheckIn');
 
   // Bangkok time
   const now = new Date();
