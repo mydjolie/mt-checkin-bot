@@ -102,4 +102,14 @@ describe('filterActiveJobs', () => {
   test('returns empty array when no rows', () => {
     expect(filterActiveJobs([], TODAY)).toEqual([]);
   });
+
+  test('parses radius with comma thousand separator correctly (e.g. "50,000" → 50000 not 50)', () => {
+    const jobs = filterActiveJobs([makeRow({ radius: '50,000' })], TODAY);
+    expect(jobs[0].radius).toBe(50000);
+  });
+
+  test('parses radius as plain number string', () => {
+    const jobs = filterActiveJobs([makeRow({ radius: '500' })], TODAY);
+    expect(jobs[0].radius).toBe(500);
+  });
 });
