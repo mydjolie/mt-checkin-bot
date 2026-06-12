@@ -224,6 +224,30 @@ async function handleEvent(event) {
     return reply(replyToken, isAdmin ? ADMIN_HELP : `👋 ระบบตอกบัตร MT\n\nกด Check-in ค่ะ 👇\n${LIFF_URL}`);
   }
 
+  if (text === 'ขอเป็นแอดมิน') {
+    // Get current admin list (env var + Config sheet)
+    let adminIds = [...ENV_ADMIN_IDS];
+    if (!adminIds.length) {
+      try {
+        const config = await getConfig(sheets);
+        adminIds = parseAdminIds(config);
+      } catch (e) {}
+    }
+    if (!adminIds.length) {
+      return reply(replyToken, `⚠️ ยังไม่มี Admin ในระบบค่ะ กรุณาติดต่อผู้ดูแลระบบโดยตรง`);
+    }
+    // Get requester's profile
+    let displayName = userId;
+    try {
+      const profile = await client.getProfile(userId);
+      displayName = profile.displayName;
+    } catch (e) {}
+    // Notify all admins
+    const msg = `🔔 มีผู้ขอสิทธิ์ Admin\n\n👤 ชื่อ: ${displayName}\n🆔 LINE ID:\n${userId}\n\nคัดลอก ID ด้านบนไปเพิ่มใน ADMIN_LINE_IDS ใน Render ค่ะ`;
+    await Promise.all(adminIds.map(id => client.pushMessage({ to: id, messages: [{ type: 'text', text: msg }] }).catch(() => {})));
+    return reply(replyToken, `✅ ส่งคำขอถึง Admin แล้วค่ะ\nกรุณารอการอนุมัติจากผู้ดูแลระบบ`);
+  }
+
   if (!isAdmin) return reply(replyToken, `📍 กด Check-in ได้เลยค่ะ 👇\n${LIFF_URL}`);
 
   if (text === 'สร้างงาน') {
