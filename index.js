@@ -25,10 +25,17 @@ const client = new line.messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_TOKEN,
 });
 
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+let _auth = null;
+function getAuth() {
+  if (!_auth) {
+    if (!process.env.GOOGLE_CREDENTIALS) throw new Error('GOOGLE_CREDENTIALS env var not set');
+    _auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+  }
+  return _auth;
+}
 const SHEET_ID = process.env.SHEET_ID;
 const LIFF_URL = `https://liff.line.me/${process.env.LIFF_ID || '2010366667-MfXxtvVD'}`;
 const RENDER_URL = process.env.RENDER_URL || 'https://mt-checkin-bot.onrender.com';
@@ -229,7 +236,7 @@ async function handleCreateJobFlow(userId, replyToken, text, st, sheets) {
 // Google Sheets Helpers
 // =============================================
 async function getSheets() {
-  return google.sheets({ version: 'v4', auth: await auth.getClient() });
+  return google.sheets({ version: 'v4', auth: await getAuth().getClient() });
 }
 
 async function getConfig(sheets) {
