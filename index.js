@@ -273,8 +273,7 @@ async function getActiveJobs(sheets) {
   const s = sheets || await getSheets();
   const res = await s.spreadsheets.values.get({
     spreadsheetId: SHEET_ID, range: 'Jobs!A2:I100',
-    valueRenderOption: 'UNFORMATTED_VALUE',
-    dateTimeRenderOption: 'SERIAL_NUMBER',
+    valueRenderOption: 'FORMATTED_VALUE',
   });
   const todayISO = toBangkokDateStr(new Date());
   return filterActiveJobs(res.data.values || [], todayISO);
