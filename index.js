@@ -223,8 +223,8 @@ async function handleEvent(event) {
   if (text === 'รายการงาน') return reply(replyToken, await getJobsList(sheets));
   if (text === 'สรุปวันนี้') return reply(replyToken, await getDailySummary(sheets));
   if (text === 'สรุปเดือนนี้') return reply(replyToken, await getMonthlySummary(sheets));
-  if (text.startsWith('archive ')) return reply(replyToken, await archiveJob(sheets, text.replace('archive ', '').trim().toUpperCase()));
-  if (text.startsWith('export ')) return reply(replyToken, await exportJobSummary(sheets, text.replace('export ', '').trim().toUpperCase()));
+  if (text.startsWith('ปิดงาน ')) return reply(replyToken, await archiveJob(sheets, text.replace('ปิดงาน ', '').trim().toUpperCase()));
+  if (text.startsWith('ส่งออก ')) return reply(replyToken, await exportJobSummary(sheets, text.replace('ส่งออก ', '').trim().toUpperCase()));
 
   return reply(replyToken, ADMIN_HELP);
 }
@@ -404,19 +404,38 @@ async function exportJobSummary(sheets, jobId) {
   const rows = await getCheckInRows(sheets);
   const filtered = rows.filter(r => String(r[1]) === jobId);
   if (!filtered.length) return `❌ ไม่พบ Check-in สำหรับ ${jobId}`;
-  const byPerson = {};
-  for (const r of filtered) {
-    const key = r[3];
-    if (!byPerson[key]) byPerson[key] = { name: r[4], nick: r[5], team: r[6], days: new Set(), count: 0 };
-    const ds = cellToDateStr(r[0]);
-    if (ds) byPerson[key].days.add(ds);
-    byPerson[key].count++;
+
+  const sheetTitle = `Export_${jobId}`;
+
+  // Get existing sheets to find or create the export tab
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+  const existing = meta.data.sheets.find(s => s.properties.title === sheetTitle);
+  let sheetId;
+
+  if (existing) {
+    sheetId = existing.properties.sheetId;
+    // Clear existing content
+    await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `${sheetTitle}!A:Z` });
+  } else {
+    const addRes = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      resource: { requests: [{ addSheet: { properties: { title: sheetTitle } } }] }
+    });
+    sheetId = addRes.data.replies[0].addSheet.properties.sheetId;
   }
-  let msg = `📊 Export ${jobId}\n\nรวม ${Object.keys(byPerson).length} คน\n\n`;
-  for (const p of Object.values(byPerson)) {
-    msg += `👤 ${p.name} (${p.nick}) ทีม: ${p.team}\n   ${p.days.size} วัน / ${p.count} ครั้ง\n`;
-  }
-  return msg.trim();
+
+  // Write header + data rows
+  const header = ['เวลา', 'JobID', 'ชื่องาน', 'LINE User ID', 'ชื่อ LINE', 'ชื่อเล่น', 'ทีม/ฝ่าย', 'Lat', 'Lng', 'ระยะ (ม.)'];
+  const dataRows = filtered.map(r => r.slice(0, 10));
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `${sheetTitle}!A1`,
+    valueInputOption: 'RAW',
+    resource: { values: [header, ...dataRows] }
+  });
+
+  const link = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${sheetId}`;
+  return `📊 ส่งออก ${jobId} สำเร็จค่ะ\n\nรวม ${filtered.length} รายการ\n\n🔗 เปิด Google Sheets:\n${link}`;
 }
 
 // Date utilities are in lib/utils.js
@@ -425,7 +444,7 @@ function reply(replyToken, text) {
   return client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
 }
 
-const ADMIN_HELP = `🛠 คำสั่ง Admin\n\n📋 รายการงาน\n➕ สร้างงาน\n📊 สรุปวันนี้\n📈 สรุปเดือนนี้\n📤 export JOB001\n🗄 archive JOB001`;
+const ADMIN_HELP = `🛠 คำสั่ง Admin\n\n📋 รายการงาน\n➕ สร้างงาน\n📊 สรุปวันนี้\n📈 สรุปเดือนนี้\n📤 ส่งออก JOB001\n🗄 ปิดงาน JOB001`;
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Bot running on port ${PORT}`));
