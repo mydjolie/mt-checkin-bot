@@ -128,7 +128,7 @@ async function handleCheckIn(data) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: 'CheckIn!A1',
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     resource: { values: [[
       timestamp, data.jobId, data.jobName, data.lineUserId,
       data.lineDisplayName, data.nickname, data.team,
