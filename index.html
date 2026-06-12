@@ -224,35 +224,62 @@
     document.getElementById('step' + n).classList.add('active');
   }
 
+  function showInitError(msg) {
+    document.getElementById('step0').innerHTML = `
+      <div class="status-box error">❌ ${msg}</div>
+      <button class="btn" onclick="location.reload()" style="margin-top:12px">🔄 ลองใหม่</button>`;
+  }
+
   // Init
   async function init() {
+    // Step 1: LIFF init
     try {
-      // โหลด LIFF และ Jobs พร้อมกัน
-      const [_, jobData] = await Promise.all([
-        liff.init({ liffId: LIFF_ID }),
-        fetch(WEB_APP_URL + '/jobs').then(r => r.json())
-      ]);
-
-      // Profile
-      if (!liff.isLoggedIn()) { liff.login(); return; }
-      const profile = await liff.getProfile();
-      userProfile = { userId: profile.userId, displayName: profile.displayName, pictureUrl: profile.pictureUrl };
-      document.getElementById('userName').innerText = profile.displayName;
-      document.getElementById('userAvatar').src = profile.pictureUrl;
-
-      // Pre-fill saved nickname/team
-      const saved = JSON.parse(localStorage.getItem('mt_profile_' + profile.userId) || '{}');
-      if (saved.nickname) document.getElementById('nickname').value = saved.nickname;
-      if (saved.team) document.getElementById('team').value = saved.team;
-
-      // Jobs
-      allJobs = jobData.jobs || [];
-      renderJobList();
-      goToStep(1);
-
+      await liff.init({ liffId: LIFF_ID });
     } catch(err) {
-      document.getElementById('step0').innerHTML = `<div class="status-box error">❌ โหลดไม่สำเร็จ: ${err.message}</div>`;
+      showInitError('เริ่มต้น LIFF ไม่สำเร็จ: ' + err.message);
+      return;
     }
+
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+
+    // Step 2: Load profile
+    let profile;
+    try {
+      profile = await liff.getProfile();
+    } catch(err) {
+      showInitError('โหลดข้อมูลผู้ใช้ไม่สำเร็จ: ' + err.message);
+      return;
+    }
+    userProfile = { userId: profile.userId, displayName: profile.displayName, pictureUrl: profile.pictureUrl };
+    document.getElementById('userName').innerText = profile.displayName;
+    document.getElementById('userAvatar').src = profile.pictureUrl;
+
+    const saved = JSON.parse(localStorage.getItem('mt_profile_' + profile.userId) || '{}');
+    if (saved.nickname) document.getElementById('nickname').value = saved.nickname;
+    if (saved.team) document.getElementById('team').value = saved.team;
+
+    // Step 3: Load jobs
+    let jobData;
+    try {
+      const resp = await fetch(WEB_APP_URL + '/jobs');
+      if (!resp.ok) {
+        showInitError(`โหลดรายการงานไม่สำเร็จ: HTTP ${resp.status} ${resp.statusText}`);
+        return;
+      }
+      jobData = await resp.json();
+    } catch(err) {
+      showInitError('เชื่อมต่อ server ไม่สำเร็จ กรุณาตรวจสอบ internet หรือลองใหม่อีกครั้ง\n(' + err.message + ')');
+      return;
+    }
+
+    if (jobData.status === 'error') {
+      showInitError('Server แจ้ง error: ' + jobData.message);
+      return;
+    }
+
+    allJobs = jobData.jobs || [];
+    renderJobList();
+    goToStep(1);
   }
 
   function renderJobList() {

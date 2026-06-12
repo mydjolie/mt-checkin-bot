@@ -81,6 +81,19 @@ app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
 
 app.get('/', (req, res) => res.send('MT Check-in Bot is running!'));
 
+// GET /health — ตรวจสอบว่า env vars ครบไหม
+app.get('/health', (req, res) => {
+  const checks = {
+    LINE_TOKEN: !!process.env.LINE_TOKEN,
+    LINE_SECRET: !!process.env.LINE_SECRET,
+    GOOGLE_CREDENTIALS: !!process.env.GOOGLE_CREDENTIALS,
+    SHEET_ID: !!process.env.SHEET_ID,
+    LIFF_ID: !!process.env.LIFF_ID,
+  };
+  const missing = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k);
+  res.json({ ok: missing.length === 0, missing, checks });
+});
+
 // =============================================
 // Check-in Logic
 // =============================================
