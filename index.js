@@ -72,6 +72,7 @@ app.post('/checkin', async (req, res) => {
 // =============================================
 // LINE Webhook
 // =============================================
+app.get('/webhook', (req, res) => res.sendStatus(200));
 app.post('/webhook', line.middleware(lineConfig), async (req, res) => {
   res.status(200).send('OK');
   try {
