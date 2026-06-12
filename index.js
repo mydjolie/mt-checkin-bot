@@ -16,10 +16,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Use raw body for LINE webhook (signature validation needs raw bytes)
-// Use JSON parser for all other routes
+// JSON parser for non-webhook routes only (LINE middleware reads raw body itself)
 app.use((req, res, next) => {
-  if (req.path === '/webhook') return express.raw({ type: '*/*' })(req, res, next);
+  if (req.path === '/webhook') return next();
   express.json()(req, res, next);
 });
 
