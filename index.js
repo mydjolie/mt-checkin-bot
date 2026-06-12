@@ -6,7 +6,6 @@ const { checkDuplicate } = require('./lib/checkin');
 const { filterActiveJobs } = require('./lib/jobs');
 
 const app = express();
-app.use(express.json());
 
 // CORS — allow GitHub Pages to call Render API
 app.use((req, res, next) => {
@@ -15,6 +14,13 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
+});
+
+// Use raw body for LINE webhook (signature validation needs raw bytes)
+// Use JSON parser for all other routes
+app.use((req, res, next) => {
+  if (req.path === '/webhook') return express.raw({ type: '*/*' })(req, res, next);
+  express.json()(req, res, next);
 });
 
 const lineConfig = {
