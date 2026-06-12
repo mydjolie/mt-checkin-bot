@@ -160,10 +160,16 @@ async function handleEvent(event) {
 
   const userId = event.source.userId;
   const replyToken = event.replyToken;
-  const sheets = await getSheets();
-  const config = await getConfig(sheets);
-  const adminIds = parseAdminIds(config);
-  const isAdmin = adminIds.includes(userId);
+  let sheets, config = {}, adminIds = [], isAdmin = false;
+  try {
+    sheets = await getSheets();
+    config = await getConfig(sheets);
+    adminIds = parseAdminIds(config);
+    isAdmin = adminIds.includes(userId);
+  } catch (e) {
+    console.error('sheets init error', e.message);
+    return reply(replyToken, `⚠️ ระบบขัดข้องชั่วคราวค่ะ กรุณาลองใหม่อีกครั้ง`);
+  }
   const st = userState.get(userId) || {};
 
   // Location for สร้างงาน flow
@@ -253,10 +259,14 @@ async function getSheets() {
 }
 
 async function getConfig(sheets) {
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Config!A2:B20' });
-  const cfg = {};
-  (res.data.values || []).forEach(([k, v]) => { if (k) cfg[k] = v; });
-  return cfg;
+  try {
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Config!A2:B20' });
+    const cfg = {};
+    (res.data.values || []).forEach(([k, v]) => { if (k) cfg[k] = v; });
+    return cfg;
+  } catch (e) {
+    return {};
+  }
 }
 
 function parseAdminIds(config) {
