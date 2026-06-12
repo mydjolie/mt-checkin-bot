@@ -51,6 +51,11 @@ const SHEET_ID = process.env.SHEET_ID;
 const LIFF_URL = `https://liff.line.me/${process.env.LIFF_ID || '2010366667-MfXxtvVD'}`;
 const RENDER_URL = process.env.RENDER_URL || 'https://mt-checkin-bot.onrender.com';
 
+// Admin IDs from env var (comma-separated) — no Sheets query needed
+// Example: ADMIN_LINE_IDS=Uabc123,Udef456
+const ENV_ADMIN_IDS = (process.env.ADMIN_LINE_IDS || '')
+  .split(',').map(s => s.trim()).filter(s => /^U[0-9a-f]{32}$/i.test(s));
+
 // state machine for สร้างงาน
 const userState = new Map();
 
@@ -114,7 +119,7 @@ app.get('/health', (req, res) => {
     LIFF_ID: !!process.env.LIFF_ID,
   };
   const missing = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k);
-  res.json({ ok: missing.length === 0, missing, checks });
+  res.json({ ok: missing.length === 0, missing, checks, adminCount: ENV_ADMIN_IDS.length });
 });
 
 // =============================================
@@ -158,10 +163,13 @@ async function handleCheckIn(data) {
     ]] }
   });
 
-  // Notify admins
+  // Notify admins — env var first, fallback to Config sheet
   try {
-    const config = await getConfig(sheets);
-    const adminIds = parseAdminIds(config);
+    let adminIds = [...ENV_ADMIN_IDS];
+    if (!adminIds.length) {
+      const config = await getConfig(sheets);
+      adminIds = parseAdminIds(config);
+    }
     if (adminIds.length > 0) {
       const msg = `🟢 Check-in!\n\n👤 ${data.lineDisplayName} (${data.nickname})\n🏷 ทีม: ${data.team}\n📋 งาน: ${data.jobName}\n🕐 ${formatBangkok(now, 'HH:mm')}\n📍 ${data.distance} เมตร`;
       await Promise.all(adminIds.map(id => client.pushMessage({ to: id, messages: [{ type: 'text', text: msg }] }).catch(() => {})));
@@ -182,12 +190,14 @@ async function handleEvent(event) {
 
   const userId = event.source.userId;
   const replyToken = event.replyToken;
-  let sheets, config = {}, adminIds = [], isAdmin = false;
+  // Check admin: env var first (fast, no Sheets query), fallback to Config sheet
+  let sheets, isAdmin = ENV_ADMIN_IDS.includes(userId);
   try {
     sheets = await getSheets();
-    config = await getConfig(sheets);
-    adminIds = parseAdminIds(config);
-    isAdmin = adminIds.includes(userId);
+    if (!isAdmin) {
+      const config = await getConfig(sheets);
+      isAdmin = parseAdminIds(config).includes(userId);
+    }
   } catch (e) {
     console.error('sheets init error', e.message);
     return reply(replyToken, `⚠️ ระบบขัดข้องชั่วคราวค่ะ กรุณาลองใหม่อีกครั้ง`);
