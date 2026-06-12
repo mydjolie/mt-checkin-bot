@@ -371,7 +371,7 @@ async function createJob(sheets, d) {
   const jobId = 'JOB' + String(maxNum + 1).padStart(3, '0');
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID, range: 'Jobs!A1',
-    valueInputOption: 'USER_ENTERED',
+    valueInputOption: 'RAW',
     resource: { values: [[jobId, d.name, d.lat, d.lng, d.radius, d.startDate, d.endDate, d.location, 'Active']] }
   });
   return jobId;

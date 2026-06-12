@@ -289,7 +289,7 @@
       return;
     }
     container.innerHTML = allJobs.map(job => `
-      <div class="job-card" onclick="selectJob('${job.jobId}')">
+      <div class="job-card" onclick="selectJob('${job.jobId}', this)">
         <div class="job-name">📌 ${job.name}</div>
         <div class="job-meta">🏢 ${job.location}</div>
         <div class="job-meta">📅 ${job.startDate} — ${job.endDate}</div>
@@ -297,10 +297,11 @@
     `).join('');
   }
 
-  function selectJob(jobId) {
+  function selectJob(jobId, el) {
     selectedJob = allJobs.find(j => j.jobId === jobId);
+    if (!selectedJob) return;
     document.querySelectorAll('.job-card').forEach(c => c.classList.remove('selected'));
-    event.currentTarget.classList.add('selected');
+    el.classList.add('selected');
     document.getElementById('selectedJobInfo').innerText = `📌 ${selectedJob.name}\n🏢 ${selectedJob.location}`;
     setTimeout(() => goToStep(2), 300);
   }
