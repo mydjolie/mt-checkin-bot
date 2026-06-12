@@ -89,11 +89,17 @@ app.post('/webhook', (req, res, next) => {
   console.log('[webhook] secret length:', (process.env.LINE_SECRET || '').length, '| last char code:', (process.env.LINE_SECRET || '').charCodeAt((process.env.LINE_SECRET || '').length - 1));
   console.log('[webhook] signature header:', req.headers['x-line-signature'] ? 'present' : 'missing');
   next();
+}, (err, req, res, next) => {
+  // This catches errors — but this is placed wrong, needs to be after line.middleware
+  next(err);
 }, line.middleware(lineConfig), async (req, res) => {
   res.status(200).send('OK');
   try {
     await Promise.all(req.body.events.map(handleEvent));
   } catch (err) { console.error(err); }
+}, (err, req, res, next) => {
+  console.error('[webhook error]', err.message, '| signature:', err.signature);
+  res.sendStatus(500);
 });
 
 app.get('/', (req, res) => res.send('MT Check-in Bot is running!'));
