@@ -16,10 +16,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// JSON parser for non-webhook routes only (LINE middleware reads raw body itself)
+// Capture raw body for LINE webhook signature validation
+// LINE SDK checks req.rawBody (Buffer) first — set it explicitly
 app.use((req, res, next) => {
-  if (req.path === '/webhook') return next();
-  express.json()(req, res, next);
+  if (req.path !== '/webhook') return express.json()(req, res, next);
+  const chunks = [];
+  req.on('data', chunk => chunks.push(chunk));
+  req.on('end', () => {
+    req.rawBody = Buffer.concat(chunks);
+    next();
+  });
 });
 
 const lineConfig = {

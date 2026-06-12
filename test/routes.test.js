@@ -26,8 +26,10 @@ function buildApp({ getActiveJobsFn, handleCheckInFn } = {}) {
   });
 
   app.use((req, res, next) => {
-    if (req.path === '/webhook') return next();
-    express.json()(req, res, next);
+    if (req.path !== '/webhook') return express.json()(req, res, next);
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => { req.rawBody = Buffer.concat(chunks); next(); });
   });
 
   app.get('/health', (req, res) => {
@@ -63,8 +65,7 @@ function buildApp({ getActiveJobsFn, handleCheckInFn } = {}) {
   app.get('/webhook', (req, res) => res.sendStatus(200));
 
   app.post('/webhook', (req, res) => {
-    // In production this is line.middleware — here just echo back raw body presence
-    res.json({ received: true, bodyIsBuffer: Buffer.isBuffer(req.body), bodyParsed: typeof req.body === 'object' && !Buffer.isBuffer(req.body) });
+    res.json({ rawBodyIsBuffer: Buffer.isBuffer(req.rawBody), bodyParsed: typeof req.body === 'object' && req.body !== undefined });
   });
 
   app.get('/', (req, res) => res.send('MT Check-in Bot is running!'));
@@ -199,11 +200,11 @@ describe('GET /webhook', () => {
 });
 
 describe('POST /webhook body parsing', () => {
-  test('body is NOT pre-parsed as JSON (LINE SDK needs raw stream)', async () => {
+  test('rawBody is Buffer (LINE SDK uses req.rawBody for signature validation)', async () => {
     const app = buildApp();
     const { body } = await makeRequest(app, 'POST', '/webhook', { test: true });
     const json = JSON.parse(body);
-    // body should NOT be a parsed JSON object — it should be a Buffer or undefined
+    expect(json.rawBodyIsBuffer).toBe(true);
     expect(json.bodyParsed).toBe(false);
   });
 });
