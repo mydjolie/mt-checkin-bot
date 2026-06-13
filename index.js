@@ -163,19 +163,6 @@ async function handleCheckIn(data) {
     ]] }
   });
 
-  // Notify admins — env var first, fallback to Config sheet
-  try {
-    let adminIds = [...ENV_ADMIN_IDS];
-    if (!adminIds.length) {
-      const config = await getConfig(sheets);
-      adminIds = parseAdminIds(config);
-    }
-    if (adminIds.length > 0) {
-      const msg = `🟢 Check-in!\n\n👤 ${data.lineDisplayName} (${data.nickname})\n🏷 ทีม: ${data.team}\n📋 งาน: ${data.jobName}\n🕐 ${formatBangkok(now, 'HH:mm')}\n📍 ${data.distance} เมตร`;
-      await Promise.all(adminIds.map(id => client.pushMessage({ to: id, messages: [{ type: 'text', text: msg }] }).catch(() => {})));
-    }
-  } catch (e) { console.error('notify error', e); }
-
   return { status: 'success' };
 }
 
