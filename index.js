@@ -183,9 +183,7 @@ async function handleCheckIn(data) {
 // LINE Event Handler
 // =============================================
 async function handleEvent(event) {
-  if (event.type === 'follow') {
-    return reply(event.replyToken, `👋 ยินดีต้อนรับ!\n\nพิมพ์ "ช่วยเหลือ" เพื่อดูคำสั่งค่ะ`);
-  }
+  if (event.type === 'follow') return;
   if (event.type !== 'message') return;
 
   const userId = event.source.userId;
